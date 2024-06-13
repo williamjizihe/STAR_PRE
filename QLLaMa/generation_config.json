@@ -1,0 +1,8 @@
+{
+  "ckpt_dir": "Meta-Llama-3-8B-Instruct/", 
+  "tokenizer_path": "Meta-Llama-3-8B-Instruct/tokenizer.model", 
+  "max_seq_len": 4196, 
+  "max_batch_size":  2, 
+  "temperature": 0.6, 
+  "top_p": 0.9
+}
