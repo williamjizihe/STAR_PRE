@@ -260,7 +260,7 @@ def read_partitions(idx, AntMaze=False, AntFall=False):
                 if line_count == 2:
                     v = [float(rec) for rec in row]
                     line_count += 1
-                    print(row)
+                    # print(row)
                 else:
                     if len(row) != 4:
                         continue
@@ -272,8 +272,7 @@ def read_partitions(idx, AntMaze=False, AntFall=False):
 
     return visits, regions
 
-
-def generate_maze_representation(regions, visits, goal, position, filename):
+def generate_maze_representation(regions, visits, filename, compress=False, goal=None, position=None):
     # Define the fixed size of the maze
     size = 40  # from -8 to 24, scaled by 2
 
@@ -299,8 +298,18 @@ def generate_maze_representation(regions, visits, goal, position, filename):
     
     # maze[0, 32] = 99 # Goal
     # maze[0, 0] = 98 # Position
-    maze[goal[0]*2, goal[1]*2] = 99 # Goal
-    maze[position[0]*2, position[1]*2] = 98 # Position
+    # maze[goal[0]*2, goal[1]*2] = 99 # Goal
+    # maze[position[0]*2, position[1]*2] = 98 # Position
+    if goal is not None and position is not None:
+        maze[goal[0]*2, goal[1]*2] = 99
+        maze[position[0]*2, position[1]*2] = 98 
+    # Compress Maze
+    if compress:
+        row_mask = np.append([True], (np.diff(maze, axis=0) != 0).any(axis=1))
+        maze = maze[row_mask]
+        
+        col_mask = np.append([True], (np.diff(maze, axis=1) != 0).any(axis=0))
+        maze = maze[:, col_mask]
     
     # Rotate the maze representation by 90 degrees
     maze = np.rot90(maze)
@@ -363,27 +372,40 @@ for file in os.listdir(dir):
 #         plt.savefig(fname, dpi=300, bbox_inches='tight')
 #         plt.close()
 
-
-for timestep in all_timesteps[:1]:
+if not os.path.exists('./maze/regions'):
+    os.makedirs('./maze/regions')
+if not os.path.exists('./maze/text'):
+    os.makedirs('./maze/text')
+if not os.path.exists('./maze/image'):
+    os.makedirs('./maze/image')
+    
+from tqdm import tqdm
+exist_regions = set()
+for timestep in tqdm(all_timesteps):
     visits, regions = read_partitions(timestep, AntMaze=True)
 
     regions = regions['AntMaze'][0]
     visits = visits['AntMaze'][0]
     
-    print(regions)
-    print(visits)
+    tup_regions = tuple([tuple(r) for r in regions])
+    if tup_regions in exist_regions:
+        continue
+    exist_regions.add(tup_regions)
+    
+    # print(regions)
+    # print(visits)
     # save regions
     fname = f"./maze/regions/AntMaze_{timestep}_Regions.txt"
     with open(fname, 'w', newline='') as f:
     # write with csv writer, delimiter is ','
         writer = csv.writer(f, delimiter=',')
         for r in regions:
-            writer.writerow(r)  
+            writer.writerow(r)
     f.close()
     
     positions = [0, 0]
     goal = [0, 16]
-    generate_maze_representation(regions, visits, goal, positions, f"./maze/text/AntMaze_{timestep}_Maze.txt")
+    generate_maze_representation(regions, visits, f"./maze/text/AntMaze_{timestep}_Maze.txt", True, goal, positions)
     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
     ax = fig.add_subplot(111)
     step = f"{timestep // 1000}K Timesteps" if timestep != 0 else "0 Timestep"
