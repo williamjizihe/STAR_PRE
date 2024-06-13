@@ -1,0 +1,189 @@
+In this task, the ant must navigate a maze to reach the exit. Act as Navigator for the ant, and select the most appropriate region from the divided areas as the ant's next target region. The matrix below shows whether the ant has moved from one region to another during the exploration.
+
+The top-down view of the maze is shown below. In the image, red represents ant's current position, grey represents obstacles, and yellow represents the goal, the regions are divided by black lines and filled with blue color. The number represents the region number.
+
+Data:-
+- State: [0, 0], Region 5
+- Goal: [0, 15], Region 4
+- Areas Info (each area is described by two diagonal vertices of a square):
+Region 1: [[6.0, 2.0], [8.0, 4.0]]
+Region 2: [[8.0, 4.0], [14.0, 6.0]]
+Region 3: [[8.0, 14.0], [11.0, 20.0]]
+Region 4: [[0.0, 8.0], [8.0, 20.0]]
+Region 5: [[0.0, 0.0], [4.0, 4.0]]
+Region 6: [[4.0, 2.0], [6.0, 3.0]]
+Region 7: [[4.0, 3.0], [6.0, 4.0]]
+Region 8: [[2.0, 4.0], [4.0, 6.0]]
+Region 9: [[0.0, 4.0], [2.0, 6.0]]
+Region 10: [[0.0, 6.0], [8.0, 8.0]]
+Region 11: [[4.0, 0.0], [8.0, 2.0]]
+Region 12: [[4.0, 4.0], [8.0, 6.0]]
+Region 13: [[8.0, 6.0], [14.0, 8.0]]
+Region 14: [[8.0, 3.0], [14.0, 4.0]]
+Region 15: [[14.0, 3.0], [20.0, 8.0]]
+Region 16: [[17.0, 2.0], [20.0, 3.0]]
+Region 17: [[8.0, 0.0], [20.0, 2.0]]
+Region 18: [[8.0, 2.0], [17.0, 3.0]]
+Region 19: [[11.0, 14.0], [20.0, 17.0]]
+Region 20: [[8.0, 8.0], [20.0, 14.0]]
+Region 21: [[11.0, 17.0], [15.5, 20.0]]
+Region 22: [[15.5, 17.0], [18.5, 20.0]]
+Region 23: [[18.5, 17.0], [20.0, 20.0]]
+- visit matrix:
+0 0 0 0 5 0 0 0 0 0 0 0 0 1 0 0 0 3 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 1 0 3 0 0 0 0 0 0 0 0
+0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 1 0 0 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0
+0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+Instructions:
+1. Determine the most appropriate region for the ant to move next, avoiding obstacles.
+2. Ensure your selected region avoids obstacles and brings the ant closer to the goal.
+3. Provide the answer in the following exact format without any additional explanation or text: Region <i>: [x1, y1], [x2, y2]
+4. Ensure the format is strictly followed without adding any extra text.
+5. Re-evaluate your answer before submission to ensure it is the best choice.
+Next
+In this task, the ant must navigate a maze to reach the exit. Act as Navigator for the ant, and select the most appropriate region from the divided areas as the ant's next target region. The matrix below shows whether the ant has moved from one region to another during the exploration.
+
+The top-down view of the maze is shown below. In the image, red represents ant's current position, grey represents obstacles, and yellow represents the goal, the regions are divided by black lines and filled with blue color. The number represents the region number.
+
+Data:-
+- State: [18, 5], Region 15
+- Goal: [0, 15], Region 4
+- Areas Info (each area is described by two diagonal vertices of a square):
+Region 1: [[6.0, 2.0], [8.0, 4.0]]
+Region 2: [[8.0, 4.0], [14.0, 6.0]]
+Region 3: [[8.0, 14.0], [11.0, 20.0]]
+Region 4: [[0.0, 8.0], [8.0, 20.0]]
+Region 5: [[0.0, 0.0], [4.0, 4.0]]
+Region 6: [[4.0, 2.0], [6.0, 3.0]]
+Region 7: [[4.0, 3.0], [6.0, 4.0]]
+Region 8: [[2.0, 4.0], [4.0, 6.0]]
+Region 9: [[0.0, 4.0], [2.0, 6.0]]
+Region 10: [[0.0, 6.0], [8.0, 8.0]]
+Region 11: [[4.0, 0.0], [8.0, 2.0]]
+Region 12: [[4.0, 4.0], [8.0, 6.0]]
+Region 13: [[8.0, 6.0], [14.0, 8.0]]
+Region 14: [[8.0, 3.0], [14.0, 4.0]]
+Region 15: [[14.0, 3.0], [20.0, 8.0]]
+Region 16: [[17.0, 2.0], [20.0, 3.0]]
+Region 17: [[8.0, 0.0], [20.0, 2.0]]
+Region 18: [[8.0, 2.0], [17.0, 3.0]]
+Region 19: [[11.0, 14.0], [20.0, 17.0]]
+Region 20: [[8.0, 8.0], [20.0, 14.0]]
+Region 21: [[11.0, 17.0], [15.5, 20.0]]
+Region 22: [[15.5, 17.0], [18.5, 20.0]]
+Region 23: [[18.5, 17.0], [20.0, 20.0]]
+- visit matrix:
+0 0 0 0 5 0 0 0 0 0 0 0 0 1 0 0 0 3 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 1 0 3 0 0 0 0 0 0 0 0
+0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 1 0 0 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0
+0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+Instructions:
+1. Determine the most appropriate region for the ant to move next, avoiding obstacles.
+2. Ensure your selected region avoids obstacles and brings the ant closer to the goal.
+3. Provide the answer in the following exact format without any additional explanation or text: Region <i>: [x1, y1], [x2, y2]
+4. Ensure the format is strictly followed without adding any extra text.
+5. Re-evaluate your answer before submission to ensure it is the best choice.
+Next
+In this task, the ant must navigate a maze to reach the exit. Act as Navigator for the ant, and select the most appropriate region from the divided areas as the ant's next target region. The matrix below shows whether the ant has moved from one region to another during the exploration.
+
+The top-down view of the maze is shown below. In the image, red represents ant's current position, grey represents obstacles, and yellow represents the goal, the regions are divided by black lines and filled with blue color. The number represents the region number.
+
+Data:-
+- State: [18, 15], Region 19
+- Goal: [0, 15], Region 4
+- Areas Info (each area is described by two diagonal vertices of a square):
+Region 1: [[6.0, 2.0], [8.0, 4.0]]
+Region 2: [[8.0, 4.0], [14.0, 6.0]]
+Region 3: [[8.0, 14.0], [11.0, 20.0]]
+Region 4: [[0.0, 8.0], [8.0, 20.0]]
+Region 5: [[0.0, 0.0], [4.0, 4.0]]
+Region 6: [[4.0, 2.0], [6.0, 3.0]]
+Region 7: [[4.0, 3.0], [6.0, 4.0]]
+Region 8: [[2.0, 4.0], [4.0, 6.0]]
+Region 9: [[0.0, 4.0], [2.0, 6.0]]
+Region 10: [[0.0, 6.0], [8.0, 8.0]]
+Region 11: [[4.0, 0.0], [8.0, 2.0]]
+Region 12: [[4.0, 4.0], [8.0, 6.0]]
+Region 13: [[8.0, 6.0], [14.0, 8.0]]
+Region 14: [[8.0, 3.0], [14.0, 4.0]]
+Region 15: [[14.0, 3.0], [20.0, 8.0]]
+Region 16: [[17.0, 2.0], [20.0, 3.0]]
+Region 17: [[8.0, 0.0], [20.0, 2.0]]
+Region 18: [[8.0, 2.0], [17.0, 3.0]]
+Region 19: [[11.0, 14.0], [20.0, 17.0]]
+Region 20: [[8.0, 8.0], [20.0, 14.0]]
+Region 21: [[11.0, 17.0], [15.5, 20.0]]
+Region 22: [[15.5, 17.0], [18.5, 20.0]]
+Region 23: [[18.5, 17.0], [20.0, 20.0]]
+- visit matrix:
+0 0 0 0 5 0 0 0 0 0 0 0 0 1 0 0 0 3 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 1 0 3 0 0 0 0 0 0 0 0
+0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+2 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0
+0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 10 0 0 1 0 0 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0
+0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 0
+0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+Instructions:
+1. Determine the most appropriate region for the ant to move next, avoiding obstacles.
+2. Ensure your selected region avoids obstacles and brings the ant closer to the goal.
+3. Provide the answer in the following exact format without any additional explanation or text: Region <i>: [x1, y1], [x2, y2]
+4. Ensure the format is strictly followed without adding any extra text.
+5. Re-evaluate your answer before submission to ensure it is the best choice.
+Next
