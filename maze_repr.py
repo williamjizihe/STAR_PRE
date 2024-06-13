@@ -9,7 +9,7 @@ import numpy as np
 title_fontsize = 15
 legend_fontsize = 12
 
-dir = './results/partitions/'
+dir = './results/partitions_AntMaze/'
 
 def transform(regions):
     trans = []
@@ -326,45 +326,46 @@ def generate_maze_representation(regions, visits, goal, position, filename):
 #     v, r = read_partitions(i, AntFall=True)
 #     plot_Ant_Fall_seq(r['AntFall'], v['AntFall'], i)
 
-# Get all files named by {env}_{timestamp}_BossPartitions.pth
+# Get all files named by {env}_{timestep}_BossPartitions.pth
 all_timesteps = []
 for file in os.listdir(dir):
     if file.endswith(".pth"):
         all_timesteps.append(int(file.split('_')[1]))
 
-maze_timesteps = [305000, 605000, 4980000]
-positions = [[0, 0], [18, 5], [18, 15]]
-goal = [0, 16]
-for timestep in maze_timesteps:
-    visits, regions = read_partitions(timestep, AntMaze=True)
+# maze_timesteps = [305000, 605000, 4980000]
+# positions = [[0, 0], [18, 5], [18, 15]]
+# goal = [0, 16]
+# for timestep in maze_timesteps:
+#     visits, regions = read_partitions(timestep, AntMaze=True)
 
-    regions = regions['AntMaze'][0]
-    visits = visits['AntMaze'][0]
-    for p in positions:
-        # generate_maze_representation(regions, visits, goal, p, f"./results/Maze/AntMaze_{timestep}_Maze_{p[0]}_{p[1]}.txt")
+#     regions = regions['AntMaze'][0]
+#     visits = visits['AntMaze'][0]
+#     for p in positions:
+#         # generate_maze_representation(regions, visits, goal, p, f"./results/Maze/AntMaze_{timestep}_Maze_{p[0]}_{p[1]}.txt")
         
-        fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
-        ax = fig.add_subplot(111)
-        step = f"{timestep // 1000}K Timesteps" if timestep != 0 else "0 Timestep"
-        # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
-        plot_Ant_Maze(regions, visits, plt.gca(), f" ", show = False, fill=False)
-        # Define circle parameters (position and radius)
-        x = p[0]  # x-coordinate of the center
-        y = p[1]  # y-coordinate of the center
-        radius = 0.5  # Radius of the circle
+#         fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
+#         ax = fig.add_subplot(111)
+#         step = f"{timestep // 1000}K Timesteps" if timestep != 0 else "0 Timestep"
+#         # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
+#         plot_Ant_Maze(regions, visits, plt.gca(), f" ", show = False, fill=False)
+#         # Define circle parameters (position and radius)
+#         x = p[0]  # x-coordinate of the center
+#         y = p[1]  # y-coordinate of the center
+#         radius = 0.5  # Radius of the circle
 
-        # Create a Circle patch
-        circle = patches.Circle((x, y), radius, linewidth=2, edgecolor='r', facecolor='r')
+#         # Create a Circle patch
+#         circle = patches.Circle((x, y), radius, linewidth=2, edgecolor='r', facecolor='r')
 
-        # Add the circle to the axis
-        ax.add_patch(circle)
-        # plt.show()
-        fname = "./exp/AntMaze_" + str(timestep) + "_" + str(p[0]) + "_" + str(p[1]) + ".png"
-        plt.savefig(fname, dpi=300, bbox_inches='tight')
-        plt.close()
-'''
-for timestamp in all_timesteps:
-    visits, regions = read_partitions(timestamp, AntMaze=True)
+#         # Add the circle to the axis
+#         ax.add_patch(circle)
+#         # plt.show()
+#         fname = "./exp/AntMaze_" + str(timestep) + "_" + str(p[0]) + "_" + str(p[1]) + ".png"
+#         plt.savefig(fname, dpi=300, bbox_inches='tight')
+#         plt.close()
+
+
+for timestep in all_timesteps[:1]:
+    visits, regions = read_partitions(timestep, AntMaze=True)
 
     regions = regions['AntMaze'][0]
     visits = visits['AntMaze'][0]
@@ -372,7 +373,7 @@ for timestamp in all_timesteps:
     print(regions)
     print(visits)
     # save regions
-    fname = f"./results/Regions/AntMaze_{timestamp}_Regions.txt"
+    fname = f"./maze/regions/AntMaze_{timestep}_Regions.txt"
     with open(fname, 'w', newline='') as f:
     # write with csv writer, delimiter is ','
         writer = csv.writer(f, delimiter=',')
@@ -380,14 +381,15 @@ for timestamp in all_timesteps:
             writer.writerow(r)  
     f.close()
     
-    # generate_maze_representation(regions, visits, f"./results/Maze/AntMaze_{timestamp}_Maze.txt")
+    positions = [0, 0]
+    goal = [0, 16]
+    generate_maze_representation(regions, visits, goal, positions, f"./maze/text/AntMaze_{timestep}_Maze.txt")
     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
     ax = fig.add_subplot(111)
-    step = f"{timestamp // 1000}K Timesteps" if timestamp != 0 else "0 Timestep"
+    step = f"{timestep // 1000}K Timesteps" if timestep != 0 else "0 Timestep"
     # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
     plot_Ant_Maze(regions, visits, plt.gca(), f" ", show = False, fill=False)
     # plt.show()
-    fname = "./AntMaze_pics/antmaze_repr_" + str(timestamp) + ".png"
+    fname = "./maze/image/" + str(timestep) + ".png"
     plt.savefig(fname, dpi=300, bbox_inches='tight')
     plt.close()
-'''
