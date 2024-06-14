@@ -340,6 +340,8 @@ all_timesteps = []
 for file in os.listdir(dir):
     if file.endswith(".pth"):
         all_timesteps.append(int(file.split('_')[1]))
+# reverse sort
+all_timesteps.sort(reverse=True)
 
 # maze_timesteps = [305000, 605000, 4980000]
 # positions = [[0, 0], [18, 5], [18, 15]]
@@ -381,6 +383,7 @@ if not os.path.exists('./maze/image'):
     
 from tqdm import tqdm
 exist_regions = set()
+i = 3
 for timestep in tqdm(all_timesteps):
     visits, regions = read_partitions(timestep, AntMaze=True)
 
@@ -403,14 +406,27 @@ for timestep in tqdm(all_timesteps):
             writer.writerow(r)
     f.close()
     
-    positions = [0, 0]
+    positions = [[0, 0], [5, 3], [10, 3], [18, 15]]
     goal = [0, 16]
-    generate_maze_representation(regions, visits, f"./maze/text/AntMaze_{timestep}_Maze.txt", True, goal, positions)
+    p = positions[i]
+    generate_maze_representation(regions, visits, f"./maze/text/AntMaze_{timestep}_Maze.txt", True, goal, p)
+    i -= 1
+    # generate_maze_representation(regions, visits, f"./maze/text/AntMaze_{timestep}_Maze_O.txt", False, goal, positions)
     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
-    ax = fig.add_subplot(111)
+    ax = plt.gca()
     step = f"{timestep // 1000}K Timesteps" if timestep != 0 else "0 Timestep"
     # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
-    plot_Ant_Maze(regions, visits, plt.gca(), f" ", show = False, fill=False)
+    plot_Ant_Maze(regions, visits, ax, f" ", show = False, fill=False)
+    # Define circle parameters (position and radius)
+    x = p[0]  # x-coordinate of the center
+    y = p[1]  # y-coordinate of the center
+    radius = 0.5  # Radius of the circle
+
+    # Create a Circle patch
+    circle = patches.Circle((x, y), radius, linewidth=2, edgecolor='r', facecolor='r')
+
+    # Add the circle to the axis
+    ax.add_patch(circle)
     # plt.show()
     fname = "./maze/image/" + str(timestep) + ".png"
     plt.savefig(fname, dpi=300, bbox_inches='tight')

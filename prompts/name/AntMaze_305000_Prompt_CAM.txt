@@ -1,0 +1,22 @@
+Data:
+- State: [0, 0], Region 1
+- Goal: [0, 15], Region 4
+- Coordination Info (each region is described by two diagonal vertices of a rectangle)Region 1: [[0.0, 0.0], [8.0, 8.0]]
+Region 2: [[8.0, 0.0], [20.0, 8.0]]
+Region 3: [[8.0, 8.0], [20.0, 20.0]]
+Region 4: [[0.0, 8.0], [8.0, 20.0]]
+- Adjacency list:
+Region 1: [2]
+-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the ant's current position, 'G' represents the goal. The number represents the region number:
+4 4 3 3 
+G 4 3 3 
+W W W 3 
+1 1 2 2 
+A 1 2 2 
+
+Provide the answer in the following exact format without any additional explanation or text: 
+Next Region: <i>
+Region <1>: <name>
+Region <2>: <name>
+Region <3>: <name>
+Region <4>: <name>

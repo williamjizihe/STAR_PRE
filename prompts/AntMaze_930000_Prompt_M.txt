@@ -1,0 +1,15 @@
+Data:
+- State: [10, 3], Region 14
+- Goal: [0, 15], Region 4
+-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the ant's current position, 'G' represents the goal. The number represents the region number:
+4 4 4 4 4 3 3 3 3 3 3 
+G 4 4 4 4 3 3 3 3 3 3 
+W W W W W W W W W 3 3 
+10 10 10 10 10 13 13 13 15 15 15 
+9 9 8 12 12 2 2 2 15 15 15 
+5 5 5 7 1 14 14 14 15 15 15 
+5 5 5 7 1 14 A 14 15 15 15 
+5 5 5 6 1 18 18 18 18 18 16 
+5 5 5 11 11 17 17 17 17 17 17 
+
+Provide the answer in the following exact format without any additional explanation or text: Region <i>

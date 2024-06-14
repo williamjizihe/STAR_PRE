@@ -10,8 +10,10 @@ class ChatGenerator:
                  max_batch_size: int = 2, 
                  temperature: float = 0.6, 
                  top_p: float = 0.9, 
+                 seed: int = 42,
                  max_gen_len: Optional[int] = None, 
-                 system_prompt: Optional[str] = None):
+                 system_prompt: Optional[str] = None,
+                ):
         """
         Initializes the chat generator by loading configurations and setting up the model.
         """
@@ -23,6 +25,7 @@ class ChatGenerator:
         self.top_p = top_p
         self.max_gen_len = max_gen_len
         self.system_prompt = system_prompt
+        self.seed = seed
 
         # Initialize the generator model
         self.generator = Llama.build(
@@ -30,7 +33,7 @@ class ChatGenerator:
             tokenizer_path=self.tokenizer_path,
             max_seq_len=self.max_seq_len,
             max_batch_size=self.max_batch_size,
-            seed=42,
+            seed=self.seed,
         )
 
         # Load user prompts once
