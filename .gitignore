@@ -2,11 +2,13 @@
 Meta-Llama-3-8B-Instruct/
 MiniCPM-2B-sft-fp32/
 
+# other
 logs/
 models/
 partitions/
 transition/
 NNet/
+test.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
