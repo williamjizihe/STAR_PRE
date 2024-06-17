@@ -13,6 +13,7 @@ from collections import defaultdict
 from star.models import ControllerActor, ControllerCritic, \
     ManagerActor, ManagerCritic, ForwardModel
 from star.utils import ndInterval
+from star.utils import generate_user_prompt
 
 from reachability import reach_analysis
 from convert import convert
@@ -104,13 +105,14 @@ def boltzmann_policy(Q, temperature, nA, goal=None):
 
 class Boss(object):
 
-    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, goal_cond=True, mem_capacity=1e5, mode='deterministic'):
+    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, instruction='', goal_cond=True, mem_capacity=1e5, mode='deterministic'):
         self.G = G_init
         self.reachability_algorithm = reachability_algorithm
         self.state_dim = state_dim
         self.goal_dim = goal_dim
         self.goal_cond = goal_cond
         self.policy = policy
+        self.instruction = instruction
         self.partition_steps = defaultdict(lambda: 0)
         self.automaton = nx.DiGraph()
         for i in range(len(self.G)):
@@ -416,7 +418,21 @@ class Boss(object):
                             self.Q[len(self.G) - 1] = self.Q[start_partition]
                     elif self.policy == 'Planning':
                         self.graph.add_node(len(self.G) - 1)
-                
+    
+    def graph_to_adjacency_list(self):
+        """Converts the graph to an adjacency list."""
+        adjacency_list = {}
+        for node in self.automaton.nodes():
+            # Get successors of each node to form the adjacency list
+            adjacency_list[node] = list(self.automaton.successors(node))
+        return adjacency_list
+    
+    def prompt(self, state, start_partition, goal, goal_partition):
+        adjency_list = self.graph_to_adjacency_list()
+        return generate_user_prompt(state, start_partition, goal, goal_partition, 
+                                    adjacency_list=adjency_list,
+                                    instruction=self.instruction)
+        
     def train(self, forward_model, goal, transition_list, min_steps, batch_size=100, replay_buffer=[], tau1=0.8, tau2=0.2):     
         for goal_pair in transition_list:
              if goal_pair not in self.automaton.edges() \

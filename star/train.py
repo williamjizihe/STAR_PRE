@@ -19,6 +19,8 @@ from envs.create_gather_env import create_gather_env
 import imageio
 
 import csv
+from chat import ChatGenerator
+
 """
 HIRO part adapted from
 https://github.com/bhairavmehta95/data-efficient-hrl/blob/master/hiro/train_hiro.py
@@ -1305,6 +1307,9 @@ def run_star(args):
             episode_num += 1
             
             target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+            # Here we ask LLM to propose a target partition
+            prompt = boss_policy.prompt(start_partition_idx, target_partition_idx, goal)
+            ###
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                 target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
             elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:

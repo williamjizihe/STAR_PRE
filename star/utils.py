@@ -503,3 +503,32 @@ def manager_mapping(grid, g_low, g_high, file, resolution=100):
     ax.invert_yaxis()
     plt.savefig(file)
     plt.close()
+    
+def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=None, maze=None, instruction=None):
+    prompt = (
+        "Data:\n"
+        f"- State: {state}, Region {r1}\n"
+        f"- Goal: {goal}, Region {r2}\n"
+    )
+    
+    # if coordination is not None:
+    #     prompt += (f"- Coordination Info (each region is described by two diagonal vertices of a rectangle)")
+    #     # Append regions
+    #     for i, region in enumerate(regions, 1):
+    #         prompt += (f"Region {i}: {region}\n")
+    
+    if adjacency_list is not None:
+        prompt += ("- Adjacency list:\n")
+        for i, row in enumerate(adjacency_list):
+            if len(row) == 0:
+                continue
+            prompt += (f"Region {i+1}: {adjacency_list[i]}\n")
+    
+    if maze is not None:
+        prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the ant's current position, 'G' represents the goal. The number represents the region number:\n")
+        prompt += (maze)
+    
+    if instruction is not None:
+        prompt += (f"\n{instruction}")
+    # prompt += ("\nProvide the answer in the following exact format without any additional explanation or text: Region <i>\n")
+    return prompt
