@@ -519,9 +519,9 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
     
     if adjacency_list is not None:
         prompt += ("- Adjacency list:\n")
-        for i, row in enumerate(adjacency_list):
-            if len(row) == 0:
-                continue
+        for i, _ in enumerate(adjacency_list):
+            # if len(row) == 0:
+            #     continue
             prompt += (f"Region {i+1}: {adjacency_list[i]}\n")
     
     if maze is not None:

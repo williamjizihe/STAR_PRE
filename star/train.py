@@ -17,9 +17,10 @@ from envs import EnvWithGoal, GatherEnv
 from envs.create_maze_env import create_maze_env
 from envs.create_gather_env import create_gather_env
 import imageio
+import logging
 
 import csv
-from chat import ChatGenerator
+from star.chat import ChatGenerator
 
 """
 HIRO part adapted from
@@ -908,6 +909,13 @@ def run_hrac(args):
 
 def run_star(args):
     start_algo = time.time()
+    system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles."
+    chat = ChatGenerator(system_prompt=system_prompt, max_batch_size=1, max_seq_len = 2048, max_gen_len = 16)
+    # 配置日志
+    logging.basicConfig(filename='example.log',  # 日志文件名
+                        filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
+                        level=logging.INFO,  # 日志级别
+                        format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
     if not os.path.exists("./results"):
         os.makedirs("./results")
     if args.save_models and not os.path.exists("./models"):
@@ -1051,8 +1059,9 @@ def run_star(args):
         reachability_algorithm=args.reach_algo,
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
-        mode=mode)
-
+        mode=mode,
+        instruction="Provide the answer in the following exact format without any additional explanation or text: Region <i>")
+    
     controller_policy = agents.Controller(
         state_dim=state_dim,
         goal_dim=controller_goal_dim,
@@ -1308,7 +1317,10 @@ def run_star(args):
             
             target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # Here we ask LLM to propose a target partition
-            prompt = boss_policy.prompt(start_partition_idx, target_partition_idx, goal)
+            prompt = boss_policy.prompt(start_partition_idx, target_partition_idx, goal, goal_partition)
+            response = chat(prompt)
+            logging.info(prompt)
+            logging.info(f"> {response}")
             ###
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                 target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
