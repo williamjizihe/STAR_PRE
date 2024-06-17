@@ -40,9 +40,9 @@ def get_tensor(z):
     if z[0].dtype == np.dtype("O"):
         return None
     if len(z.shape) == 1:
-        return var(torch.FloatTensor(z.copy())).unsqueeze(0)
+        return var(torch.tensor(z.copy(), dtype=torch.float32)).unsqueeze(0)
     else:
-        return var(torch.FloatTensor(z.copy()))
+        return var(torch.tensor(z.copy(), dtype=torch.float32))
 
 
 def make_epsilon_greedy_policy(Q, epsilon, nA, goal=None):

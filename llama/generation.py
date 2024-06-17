@@ -19,6 +19,19 @@ from fairscale.nn.model_parallel.initialize import (
 from llama.model import ModelArgs, Transformer
 from llama.tokenizer import ChatFormat, Dialog, Message, Tokenizer
 
+from functools import wraps
+
+def use_tensor_type(tensor_type):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            original_tensor_type = torch.tensor([]).type()
+            torch.set_default_tensor_type(tensor_type)
+            result = func(*args, **kwargs)
+            torch.set_default_tensor_type(original_tensor_type)
+            return result
+        return wrapper
+    return decorator
 
 class CompletionPrediction(TypedDict, total=False):
     generation: str
@@ -34,6 +47,7 @@ class ChatPrediction(TypedDict, total=False):
 
 class Llama:
     @staticmethod
+    @use_tensor_type(torch.cuda.BFloat16Tensor)
     def build(
         ckpt_dir: str,
         tokenizer_path: str,
@@ -102,14 +116,14 @@ class Llama:
         )
         tokenizer = Tokenizer(model_path=tokenizer_path)
         assert model_args.vocab_size == tokenizer.n_words
-        if torch.cuda.is_bf16_supported():
-            torch.set_default_tensor_type(torch.cuda.BFloat16Tensor)
-            # torch.set_default_dtype(torch.bfloat16)
-            # torch.set_default_device("cuda")
-        else:
-            torch.set_default_tensor_type(torch.cuda.HalfTensor)
-            # torch.set_default_dtype(torch.float16)
-            # torch.set_default_device("cuda")
+        # if torch.cuda.is_bf16_supported():
+        #     torch.set_default_tensor_type(torch.cuda.BFloat16Tensor)
+        #     # torch.set_default_dtype(torch.bfloat16)
+        #     # torch.set_default_device("cuda")
+        # else:
+        #     torch.set_default_tensor_type(torch.cuda.HalfTensor)
+        #     # torch.set_default_dtype(torch.float16)
+        #     # torch.set_default_device("cuda")
         model = Transformer(model_args)
         model.load_state_dict(checkpoint, strict=False)
         print(f"Loaded in {time.time() - start_time:.2f} seconds")
@@ -230,6 +244,7 @@ class Llama:
             out_logprobs.append(probs)
         return (out_tokens, out_logprobs if logprobs else None)
 
+    @use_tensor_type(torch.cuda.BFloat16Tensor)
     def text_completion(
         self,
         prompts: List[str],
@@ -281,6 +296,7 @@ class Llama:
             ]
         return [{"generation": self.tokenizer.decode(t)} for t in generation_tokens]
 
+    @use_tensor_type(torch.cuda.BFloat16Tensor)
     def chat_completion(
         self,
         dialogs: List[Dialog],
