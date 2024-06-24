@@ -1,0 +1,17 @@
+- role: user  
+  content: "Data:\nState: [10, 3], Region 14\nGoal: [0, 15], Region 4\nAdjacency list:\n\
+    Region 1: [5, 11, 18]\nRegion 2: [13]\nRegion 3: [4]\nRegion 5: [1, 6, 11]\nRegion\
+    \ 6: [1, 11]\nRegion 11: [1, 6, 17]\nRegion 13: [3, 15]\nRegion 14: [2, 15, 18]\n\
+    Region 15: [2, 3, 14]\nRegion 17: [18]\nRegion 18: [1, 14]\n-The top-down view\
+    \ of the maze is shown below, 'W' represents walls, 'A' represents the ant's current\
+    \ position, 'G' represents the goal. The number represents the region number:\n\
+    4 4 4 4 4 3 3 3 3 3 3 \nG 4 4 4 4 3 3 3 3 3 3 \nW W W W W W W W W 3 3 \n10 10\
+    \ 10 10 10 13 13 13 15 15 15 \n9 9 8 12 12 2 2 2 15 15 15 \n5 5 5 7 1 14 14 14\
+    \ 15 15 15 \n5 5 5 7 1 14 A 14 15 15 15 \n5 5 5 6 1 18 18 18 18 18 16 \n5 5 5\
+    \ 11 11 17 17 17 17 17 17 \n\nThinking Process:\n1. Identify the agent's current\
+    \ region, identify the goal region\n2. Identify where is the wall.\n3. Examine\
+    \ the adjacency list to see which regions connect to the current region.\n4. Observe\
+    \ the maze to see which other regions are also connected to the current region.\n\
+    5. From these connected regions, choose the one that moves closest to the goal\
+    \ without hitting walls.\n\nBased on the above analysis, what is the most strategic\
+    \ next region for the agent to explore? Answer format: Region <i>."

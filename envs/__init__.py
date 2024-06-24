@@ -11,7 +11,8 @@ def get_goal_sample_fn(env_name, evaluate):
         if evaluate:
             return lambda: np.array([0., 16.])
         else:
-            return lambda: np.random.uniform((-4, -4), (20, 20))
+            # return lambda: np.random.uniform((-4, -4), (20, 20))
+            return lambda: np.random.uniform((0, 0), (20, 20))
     elif env_name == 'AntMazeSparse' or env_name == 'PointMazeSparse':
         return lambda: np.array([2., 9.])
     elif env_name == 'AntPush':

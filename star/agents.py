@@ -14,6 +14,7 @@ from star.models import ControllerActor, ControllerCritic, \
     ManagerActor, ManagerCritic, ForwardModel
 from star.utils import ndInterval
 from star.utils import generate_user_prompt
+from star.utils import generate_maze_representation
 
 from reachability import reach_analysis
 from convert import convert
@@ -427,10 +428,17 @@ class Boss(object):
             adjacency_list[node] = list(self.automaton.successors(node))
         return adjacency_list
     
-    def prompt(self, state, start_partition, goal, goal_partition):
-        adjency_list = self.graph_to_adjacency_list()
-        return generate_user_prompt(state, start_partition, goal, goal_partition, 
-                                    adjacency_list=adjency_list,
+    def prompt(self, state, start_partition, goal, goal_partition, adjacency_list):
+        state = [int(i) for i in state[:self.goal_dim]]
+        goal = [int(i) for i in goal[:self.goal_dim]]
+        regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
+        # combine automaton and adjacency list
+        a_list = self.graph_to_adjacency_list()
+        
+        maze = generate_maze_representation(regions, goal, state)
+        return generate_user_prompt(state, start_partition+1, goal, goal_partition+1, 
+                                    adjacency_list=adjacency_list,
+                                    maze=maze,
                                     instruction=self.instruction)
         
     def train(self, forward_model, goal, transition_list, min_steps, batch_size=100, replay_buffer=[], tau1=0.8, tau2=0.2):     

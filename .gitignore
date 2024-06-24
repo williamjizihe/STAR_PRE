@@ -7,8 +7,10 @@ logs/
 models/
 partitions/
 transition/
+results/
 NNet/
 test.py
+nnet/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

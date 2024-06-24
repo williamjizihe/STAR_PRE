@@ -1,0 +1,11 @@
+{
+    "ckpt_dir": "Meta-Llama-3-8B-Instruct/",
+    "tokenizer_path": "Meta-Llama-3-8B-Instruct/tokenizer.model",
+    "max_seq_len": 2048,
+    "max_batch_size": 1,
+    "temperature": 0.6,
+    "top_p": 0.9,
+    "seed": 42,
+    "max_gen_len": 16,
+    "system_prompt": "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate region for the agent to explore next, avoiding obstacles."
+}  

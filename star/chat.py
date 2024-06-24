@@ -3,29 +3,30 @@ from llama import Dialog, Llama
 import json
 
 class ChatGenerator:
-    def __init__(self, 
-                 ckpt_dir: str = "Meta-Llama-3-8B-Instruct/", 
-                 tokenizer_path: str = "Meta-Llama-3-8B-Instruct/tokenizer.model", 
-                 max_seq_len: int = 4196, 
-                 max_batch_size: int = 2, 
-                 temperature: float = 0.6, 
-                 top_p: float = 0.9, 
-                 seed: int = 42,
-                 max_gen_len: Optional[int] = None, 
-                 system_prompt: Optional[str] = None,
-                ):
+    def __init__(self, config_path: str, **kwargs):
         """
-        Initializes the chat generator by loading configurations and setting up the model.
+        Initializes the chat generator by loading configurations from a JSON file.
+        Allows overriding configurations through keyword arguments.
+
+        Args:
+        config_path (str): Path to the JSON configuration file.
+        kwargs: Optional keyword arguments to override the configuration file settings.
         """
-        self.ckpt_dir = ckpt_dir
-        self.tokenizer_path = tokenizer_path
-        self.max_seq_len = max_seq_len
-        self.max_batch_size = max_batch_size
-        self.temperature = temperature
-        self.top_p = top_p
-        self.max_gen_len = max_gen_len
-        self.system_prompt = system_prompt
-        self.seed = seed
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        # Update configuration with any overrides provided as kwargs
+        config.update(kwargs)
+        
+        self.ckpt_dir = config.get("ckpt_dir", "Meta-Llama-3-8B-Instruct/")
+        self.tokenizer_path = config.get("tokenizer_path", "Meta-Llama-3-8B-Instruct/tokenizer.model")
+        self.max_seq_len = config.get("max_seq_len", 4196)
+        self.max_batch_size = config.get("max_batch_size", 2)
+        self.temperature = config.get("temperature", 0.6)
+        self.top_p = config.get("top_p", 0.9)
+        self.seed = config.get("seed", 42)
+        self.max_gen_len = config.get("max_gen_len", None)
+        self.system_prompt = config.get("system_prompt", None)
 
         # Initialize the generator model
         self.generator = Llama.build(
@@ -35,10 +36,6 @@ class ChatGenerator:
             max_batch_size=self.max_batch_size,
             seed=self.seed,
         )
-
-        # Load user prompts once
-        with open("user_prompt.json", 'r') as f:
-            self.user_prompt = json.load(f)[1]
 
     def __call__(self, user_input: str) -> str:
         """
@@ -57,9 +54,7 @@ class ChatGenerator:
             prompts.append(system_prompt)
         prompts.append(user_prompt)
         
-        dialogs: List[Dialog] = [
-            prompts
-        ]
+        dialogs: List[Dialog] = [prompts]
 
         results = self.generator.chat_completion(
             dialogs,
@@ -70,19 +65,10 @@ class ChatGenerator:
 
         return results[0]['generation']['content']
 
-    def __del__(self):
-        """
-        Clean up any resources if needed upon destruction of the instance.
-        """
-        # Delete the generator model
-        pass
-
 if __name__ == '__main__':
-    system_prompt = "You are the navigation assistant for an ant. Your task is to name each region with a unique name."
-    chat_gen = ChatGenerator(system_prompt=system_prompt)
+    # system_prompt = "You are the navigation assistant for an ant. Your task is to name each region with a unique name."
+    chat_gen = ChatGenerator('llama_config.json')
     response = chat_gen("What should the next region be named?")
     print(response)
     response = chat_gen("What should the next region be named?")
     print(response)
-    
-    del chat_gen

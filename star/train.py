@@ -221,7 +221,10 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
             avg_visits += visits
 
         avg_visits /= eval_episodes
-
+        adjacency_list = []
+        for row in enumerate(visits_matrix):
+            adjacency_list.append([i+1 for i, x in enumerate(row[1]) if x > 0])
+        
         # if eval_idx in [200, 400, 600]:
         if eval_idx % 5 == 0: # Save the partitions every 5 evaluations
             with open("{}/{}_{}_BossPartitions.pth".format('./results/partitions', env_name, total_timesteps), 'w', encoding='UTF8') as f:
@@ -257,7 +260,7 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
         print("---------------------------------------")
 
         env.evaluate = False
-        return avg_reward, avg_controller_rew, avg_step_count, avg_env_finish, grid
+        return avg_reward, avg_controller_rew, avg_step_count, avg_env_finish, grid, adjacency_list
 
 def evaluate_policy_gara(env, env_name, goal_dim, grid, boss_policy, controller_policy,
                     calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
@@ -909,10 +912,10 @@ def run_hrac(args):
 
 def run_star(args):
     start_algo = time.time()
-    system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles."
-    chat = ChatGenerator(system_prompt=system_prompt, max_batch_size=1, max_seq_len = 2048, max_gen_len = 16)
+    # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate region for the agent to explore next, avoiding obstacles."
+    chat = ChatGenerator("llama_config.json")
     # 配置日志
-    logging.basicConfig(filename='example.log',  # 日志文件名
+    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}.log',  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
                         level=logging.INFO,  # 日志级别
                         format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
@@ -1157,6 +1160,7 @@ def run_star(args):
     if not os.path.exists("./results/Regions"):
         os.makedirs("./results/Regions")
     Region_lists_folder = f"./results/Regions/Region_lists_{args.env_name}_{args.algo}_{args.exp}_{args.seed}"
+    adjacency_list = None
     
     # Train
     while total_timesteps < args.max_timesteps:
@@ -1250,7 +1254,7 @@ def run_star(args):
                 if timesteps_since_eval >= args.eval_freq:
                     timesteps_since_eval = 0
                     start_eval = time.time()
-                    avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid = evaluate_policy_star(env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
+                    avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid, adjacency_list = evaluate_policy_star(env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
                             calculate_controller_reward, args.ctrl_rew_scale, args.boss_propose_freq, args.manager_propose_freq,
                             len(evaluations), total_timesteps=total_timesteps)
                     end_eval = time.time()
@@ -1315,12 +1319,18 @@ def run_star(args):
             just_loaded = False
             episode_num += 1
             
-            target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+            # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # Here we ask LLM to propose a target partition
-            prompt = boss_policy.prompt(start_partition_idx, target_partition_idx, goal, goal_partition)
-            response = chat(prompt)
-            logging.info(prompt)
-            logging.info(f"> {response}")
+            try:
+                prompt = boss_policy.prompt(state, start_partition_idx, goal, goal_partition, adjacency_list)
+                response = chat(prompt)
+                logging.info(f"Timestep: {total_timesteps} Done!\n{prompt}")
+                logging.info(f"> {response}")
+                target_partition_idx = int(response.split()[-1]) - 1
+            except Exception as e:
+                logging.error(e)
+                target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+            # logging.info(f"STAR: {target_partition_idx+1}")
             ###
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                 target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
@@ -1419,7 +1429,18 @@ def run_star(args):
             start_partition_idx = boss_policy.identify_partition(state)
             start_partition = np.array(boss_policy.G[start_partition_idx].inf + boss_policy.G[start_partition_idx].sup)
             
-            target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
+            # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
+            # Here we ask LLM to propose a target partition
+            try:
+                prompt = boss_policy.prompt(state, start_partition_idx, goal, goal_partition, adjacency_list)
+                response = chat(prompt)
+                logging.info(f"Timestep: {total_timesteps}\n{prompt}")
+                logging.info(f"> {response}")
+                target_partition_idx = int(response.split()[-1]) - 1
+            except Exception as e:
+                logging.error(e)
+                target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                 target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
             elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:
@@ -1466,7 +1487,7 @@ def run_star(args):
     
     # Final evaluation
     start_eval = time.time()
-    avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid = evaluate_policy_star(
+    avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid, adjacency_list = evaluate_policy_star(
         env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy, calculate_controller_reward,
         args.ctrl_rew_scale, args.boss_propose_freq, args.manager_propose_freq, len(evaluations))
     end_eval = time.time()
