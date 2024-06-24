@@ -20,7 +20,9 @@ from reachability import reach_analysis
 from convert import convert
 
 import csv
-
+import yaml
+from star.chat import ChatGenerator
+import re
 
 """
 HIRO part adapted from
@@ -75,7 +77,7 @@ def make_epsilon_greedy_policy(Q, epsilon, nA, goal=None):
 
     return policy_fn
 
-def boltzmann_policy(Q, temperature, nA, goal=None):
+def boltzmann_policy(Q, temperature, nA, epsilon, goal=None):
     """
         Creates an epsilon-greedy policy based on a given Q-function and epsilon.
 
@@ -116,6 +118,7 @@ class Boss(object):
         self.instruction = instruction
         self.partition_steps = defaultdict(lambda: 0)
         self.automaton = nx.DiGraph()
+        
         for i in range(len(self.G)):
             self.automaton.add_node(i)
 
@@ -132,7 +135,16 @@ class Boss(object):
         self.unsafe = []
         self.splits = []
         self.mode = mode
-    
+        # Llama3
+        self.chat = ChatGenerator(max_seq_len=2048, max_gen_len=512, system_prompt="As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.")
+        with open('./QLLaMa/shot.yaml', 'r') as f:
+            shot = yaml.load(f, Loader=yaml.FullLoader)
+        f.close()
+        self.chat.save_shot(shot)
+        self.chat_history = {}
+        self.last_partition_idx = None
+        self.last_state_region = None
+        
     def identify_goal(self, goal):
         i = -1
         for i in range(len(self.G)):
@@ -420,26 +432,72 @@ class Boss(object):
                     elif self.policy == 'Planning':
                         self.graph.add_node(len(self.G) - 1)
     
-    def graph_to_adjacency_list(self):
+    def graph_to_adjacency_dict(self):
         """Converts the graph to an adjacency list."""
-        adjacency_list = {}
+        adjacency_dict = {}
         for node in self.automaton.nodes():
             # Get successors of each node to form the adjacency list
-            adjacency_list[node] = list(self.automaton.successors(node))
-        return adjacency_list
+            adjacency_dict[node] = list(self.automaton.successors(node))
+        return adjacency_dict
     
     def prompt(self, state, start_partition, goal, goal_partition, adjacency_list):
-        state = [int(i) for i in state[:self.goal_dim]]
-        goal = [int(i) for i in goal[:self.goal_dim]]
+        # 转为最近的.5
+        state = [round(n*2)/2 for n in state[:self.goal_dim]]
+        goal = [round(n*2)/2 for n in goal[:self.goal_dim]]
+        
         regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
-        # combine automaton and adjacency list
-        a_list = self.graph_to_adjacency_list()
         
         maze = generate_maze_representation(regions, goal, state)
+
         return generate_user_prompt(state, start_partition+1, goal, goal_partition+1, 
                                     adjacency_list=adjacency_list,
                                     maze=maze,
                                     instruction=self.instruction)
+    
+    def select_partition_chat(self, state, start_partition_idx, goal, logging=None):
+        if self.last_partition_idx is not None and self.last_state_region == state:
+            return self.last_partition_idx
+        
+        goal_partition_idx = self.identify_goal(goal)
+        # 转为最近的.5
+        state = tuple([round(n*2)/2 for n in state[:self.goal_dim]])
+        goal = tuple([round(n*2)/2 for n in goal[:self.goal_dim]])
+        
+        regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
+        # combine automaton and adjacency list
+        adjacency_dict = self.graph_to_adjacency_dict()
+        tup_regions = tuple([tuple(region) for region in regions])
+        chat_input = (state, goal, start_partition_idx, goal_partition_idx, tup_regions)
+
+        if chat_input in self.chat_history:
+            self.last_partition_idx = self.chat_history[chat_input]
+            if logging:
+                logging.info(f"Chat: Exist Answer: {self.last_partition_idx}")
+            self.last_state_region = state
+            return self.last_partition_idx
+        
+        maze = generate_maze_representation(regions, goal, state)
+        prompt = generate_user_prompt(state, start_partition_idx+1, goal, goal_partition_idx+1, 
+                                    adjacency_list=adjacency_dict,
+                                    maze=maze,
+                                    instruction=self.instruction)
+        response = self.chat(prompt)
+        last_line = response.strip().split("\n")[-1]
+        match = re.search(r"Region (\d+)", last_line)
+        
+        if logging:
+            logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}")
+        if match:
+            answer = int(match.group(1))
+        else:
+            answer = start_partition_idx
+            logging.warning(f"Chat: Response not match format!")
+        self.chat_history[chat_input] = answer
+        if logging:
+            logging.info(f"Chat {self.chat.count}: New Answer: {answer}")
+        self.last_partition_idx = answer
+        self.last_state_region = state
+        return answer
         
     def train(self, forward_model, goal, transition_list, min_steps, batch_size=100, replay_buffer=[], tau1=0.8, tau2=0.2):     
         for goal_pair in transition_list:

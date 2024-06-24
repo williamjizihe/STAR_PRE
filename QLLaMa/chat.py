@@ -2,6 +2,7 @@ from typing import List, Optional
 from myllama import Llama
 import json
 import copy
+import time
 
 class ChatGenerator:
     def __init__(self, 
@@ -54,53 +55,25 @@ class ChatGenerator:
         Returns:
         str: The generated response.
         """
+        time1 = time.time()
         tokens = copy.deepcopy(self.shot_tokens)
         tokens.extend(self.generator.formatter.encode_message(message))
         tokens.extend(self.head_tokens)
         
-        generation_tokens, _ = self.generator.generate(
+        generation_tokens = self.generator.generate(
             prompt_tokens=[tokens],
             max_gen_len=self.max_gen_len,
             temperature=self.temperature,
-            top_p=self.top_p,
-            logprobs=False,
+            top_p=self.top_p
         )
-
+        time2 = time.time()
+        print("Time taken for prompt: ", time2-time1)
         return self.generator.tokenizer.decode(generation_tokens[0])
-    
-    # def __call__(self, user_input: str) -> str:
-    #     """
-    #     Generate a response to the user input using the model.
-
-    #     Args:
-    #     user_input (str): Input from the user to generate a response to.
-
-    #     Returns:
-    #     str: The generated response.
-    #     """
-    #     prompts = []
-    #     user_prompt = {"role": "user", "content": user_input}
-    #     if self.system_prompt is not None:
-    #         system_prompt = {"role": "system", "content": self.system_prompt}
-    #         prompts.append(system_prompt)
-    #     prompts.append(user_prompt)
-        
-    #     dialogs: List[Dialog] = [
-    #         prompts
-    #     ]
-
-    #     results = self.generator.chat_completion(
-    #         dialogs,
-    #         max_gen_len=self.max_gen_len,
-    #         temperature=self.temperature,
-    #         top_p=self.top_p,
-    #     )
-
-    #     return results[0]['generation']['content']
 
     def save_shot(self, shot):
         tokens = []
         tokens.append(self.generator.formatter.tokenizer.special_tokens["<|begin_of_text|>"])
+        tokens.extend(self.generator.formatter.encode_message({"role": "system", "content": self.system_prompt}))
         for message in shot:
             tokens.extend(self.generator.formatter.encode_message(message))
         self.shot_tokens = tokens

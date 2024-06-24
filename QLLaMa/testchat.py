@@ -3,7 +3,7 @@ import json
 import time
 import yaml
 
-system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles, then name each region with a unique name understandable by the user to help him follow your instructions."
+# system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles, then name each region with a unique name understandable by the user to help him follow your instructions."
 # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles."
 # system_prompt = "In this task, You are an assistant"
 system_prompt = "As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections."

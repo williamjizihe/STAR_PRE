@@ -1,33 +1,35 @@
 from typing import List, Optional
-from llama import Dialog, Llama
-import json
+from myllama import Llama
+import copy
 
 class ChatGenerator:
-    def __init__(self, config_path: str, **kwargs):
+    def __init__(self, 
+                 ckpt_dir: str = "Meta-Llama-3-8B-Instruct/", 
+                 tokenizer_path: str = "Meta-Llama-3-8B-Instruct/tokenizer.model", 
+                 max_seq_len: int = 4196, 
+                 max_batch_size: int = 2, 
+                 temperature: float = 0.6, 
+                 top_p: float = 0.9, 
+                 seed: int = 42,
+                 max_gen_len: Optional[int] = 2048, 
+                 system_prompt: Optional[str] = None,
+                ):
         """
-        Initializes the chat generator by loading configurations from a JSON file.
-        Allows overriding configurations through keyword arguments.
-
-        Args:
-        config_path (str): Path to the JSON configuration file.
-        kwargs: Optional keyword arguments to override the configuration file settings.
+        Initializes the chat generator by loading configurations and setting up the model.
         """
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-
-        # Update configuration with any overrides provided as kwargs
-        config.update(kwargs)
+        self.ckpt_dir = ckpt_dir
+        self.tokenizer_path = tokenizer_path
+        self.max_seq_len = max_seq_len
+        self.max_batch_size = max_batch_size
+        self.temperature = temperature
+        self.top_p = top_p
+        self.max_gen_len = max_gen_len
+        self.system_prompt = system_prompt
+        self.seed = seed
+        self.shot_tokens = None
+        self.head_tokens = None
+        self.count = 0
         
-        self.ckpt_dir = config.get("ckpt_dir", "Meta-Llama-3-8B-Instruct/")
-        self.tokenizer_path = config.get("tokenizer_path", "Meta-Llama-3-8B-Instruct/tokenizer.model")
-        self.max_seq_len = config.get("max_seq_len", 4196)
-        self.max_batch_size = config.get("max_batch_size", 2)
-        self.temperature = config.get("temperature", 0.6)
-        self.top_p = config.get("top_p", 0.9)
-        self.seed = config.get("seed", 42)
-        self.max_gen_len = config.get("max_gen_len", None)
-        self.system_prompt = config.get("system_prompt", None)
-
         # Initialize the generator model
         self.generator = Llama.build(
             ckpt_dir=self.ckpt_dir,
@@ -37,7 +39,12 @@ class ChatGenerator:
             seed=self.seed,
         )
 
-    def __call__(self, user_input: str) -> str:
+        self.head_tokens = self.generator.formatter.encode_header({"role": "assistant", "content": ""})
+
+        # Load user prompts once
+        # with open("user_prompt.json", 'r') as f:
+        #     self.user_prompt = json.load(f)[1]
+    def __call__(self, prompt) -> str:
         """
         Generate a response to the user input using the model.
 
@@ -47,28 +54,24 @@ class ChatGenerator:
         Returns:
         str: The generated response.
         """
-        prompts = []
-        user_prompt = {"role": "user", "content": user_input}
-        if self.system_prompt is not None:
-            system_prompt = {"role": "system", "content": self.system_prompt}
-            prompts.append(system_prompt)
-        prompts.append(user_prompt)
+        tokens = copy.deepcopy(self.shot_tokens)
+        tokens.extend(self.generator.formatter.encode_message({"role": "user", "content": prompt}))
+        tokens.extend(self.head_tokens)
         
-        dialogs: List[Dialog] = [prompts]
-
-        results = self.generator.chat_completion(
-            dialogs,
+        generation_tokens = self.generator.generate(
+            prompt_tokens=[tokens],
             max_gen_len=self.max_gen_len,
             temperature=self.temperature,
-            top_p=self.top_p,
+            top_p=self.top_p
         )
+        self.count += 1
+        return self.generator.tokenizer.decode(generation_tokens[0])
 
-        return results[0]['generation']['content']
-
-if __name__ == '__main__':
-    # system_prompt = "You are the navigation assistant for an ant. Your task is to name each region with a unique name."
-    chat_gen = ChatGenerator('llama_config.json')
-    response = chat_gen("What should the next region be named?")
-    print(response)
-    response = chat_gen("What should the next region be named?")
-    print(response)
+    def save_shot(self, shot):
+        tokens = []
+        tokens.append(self.generator.formatter.tokenizer.special_tokens["<|begin_of_text|>"])
+        tokens.extend(self.generator.formatter.encode_message({"role": "system", "content": self.system_prompt}))
+        for message in shot:
+            tokens.extend(self.generator.formatter.encode_message(message))
+        self.shot_tokens = tokens
+        return

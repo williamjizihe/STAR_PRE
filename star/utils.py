@@ -525,38 +525,46 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
     #         prompt += (f"Region {k+1}: {v}\n")
     if adjacency_list is not None:
         prompt += ("- Adjacency list:\n")
-        for i, row in enumerate(adjacency_list):
+        for i, row in adjacency_list.items():
             # if len(row) == 0:
             #     continue
-            prompt += (f"Region {i+1}: {adjacency_list[i]}\n")
+            prompt += (f"Region {i+1}: {row}\n")
     
     if maze is not None:
         prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the ant's current position, 'G' represents the goal. The number represents the region number:\n")
         prompt += (maze)
     
-    if instruction is not None:
-        prompt += (f"\n{instruction}")
+    prompt += (
+        "\nThinking Process:\n"
+        "1. Identify the agent's current region, identify the goal region\n"
+        "2. Identify where is the wall.\n"
+        "3. Examine the adjacency list to see which regions connect to the current region.\n"
+        "4. Observe the maze to see which other regions are also connected to the current region.\n"
+        "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
+        "\nBased on the analysis, identify the most strategic next region to explore and format your answer as follows: Answer: Region <i>"
+    )
     # prompt += ("\nProvide the answer in the following exact format without any additional explanation or text: Region <i>\n")
     return prompt
 
 def generate_maze_representation(regions, goal, position):
     # Define the fixed size of the maze
-    size = 40  # from -8 to 24, scaled by 2
-
+    size = 49  # from -4 to 20, scaled by 2
+    offset = 8  # offset to make all coordinates positive
+    
     # Initialize the maze representation with zeros
     maze = np.zeros((size, size), dtype=int)
 
     # Mark regions with their respective indices
     for i, r in enumerate(regions):
-        x1, y1, x2, y2 = int(r[0]*2), int(r[1]*2), int(r[2]*2), int(r[3]*2)
-        maze[x1:x2, y1:y2] = i + 1
+        x1, y1, x2, y2 = int(r[0]*2)+offset, int(r[1]*2)+offset, int(r[2]*2)+offset, int(r[3]*2)+offset
+        maze[x1:x2+1, y1:y2+1] = i + 1
 
     # Define wall boundaries (scaled by 2)
-    # wall = ((0, 16), (32, 32))  # Middle wall
-    maze[0:32, 16:17] = -1
+    # wall = ((-8, 16), (32, 32))  # Middle wall
+    maze[-8+offset:32+offset+1, 16+offset:32+offset+1] = -1
     
-    maze[int(goal[0]*2), int(goal[1]*2)] = 99
-    maze[int(position[0]*2), int(position[1]*2)] = 98 
+    maze[int(goal[0]*2)+offset, int(goal[1]*2)+offset] = 99
+    maze[int(position[0]*2)+offset, int(position[1]*2)+offset] = 98 
 
     # Compress the maze if required
     row_mask = np.append([True], (np.diff(maze, axis=0) != 0).any(axis=1))
@@ -572,7 +580,7 @@ def generate_maze_representation(regions, goal, position):
     char_maze[maze == -1] = 'W'
     char_maze[maze == 98] = 'A'
     char_maze[maze == 99] = 'G'
-    char_maze[(maze > 0) & (maze < 98)] = maze[(maze > 0) & (maze < 98)].astype(str)
+    char_maze[(maze >= 0) & (maze < 98)] = maze[(maze >= 0) & (maze < 98)].astype(str)
     
     # Join all characters and form the final string
     return '\n'.join(' '.join(row) for row in char_maze)

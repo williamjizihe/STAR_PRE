@@ -18,6 +18,7 @@ from envs.create_maze_env import create_maze_env
 from envs.create_gather_env import create_gather_env
 import imageio
 import logging
+import yaml
 
 import csv
 from star.chat import ChatGenerator
@@ -106,7 +107,7 @@ def evaluate_policy(env, env_name, manager_policy, controller_policy,
 
 def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
                     calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
-                    manager_propose_frequency=10, eval_idx=0, eval_episodes=5, save_goals=False, total_timesteps=0):
+                    manager_propose_frequency=10, eval_idx=0, eval_episodes=5, save_goals=False, total_timesteps=0, logging=None):
     print("Starting evaluation number {}...".format(eval_idx))
     env.evaluate = True
     avg_visits = np.zeros(len(boss_policy.G))
@@ -158,13 +159,19 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
              # Initialize video writer only for the 4th episode
             # if eval_ep == 4:
             #     video_writer = imageio.get_writer(video_path, fps=30)
-
+            boss_policy.last_partition_idx = None
             while not done:
                 if step_count % boss_propose_frequency == 0:
                     start_partition_idx = boss_policy.identify_partition(state)
                     start_partition = np.array(boss_policy.G[start_partition_idx].inf + boss_policy.G[start_partition_idx].sup)
                     visits[start_partition_idx] += 1
-                    target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    try:
+                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, start_partition_idx) - 1
+                    except Exception as e:
+                        target_partition_idx = boss_policy.select_partition(state, start_partition_idx, goal)
+                        if logging:
+                            logging.error("Error in evaluation: {}".format(e))
                     if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                         target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
                     elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:
@@ -913,9 +920,10 @@ def run_hrac(args):
 def run_star(args):
     start_algo = time.time()
     # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate region for the agent to explore next, avoiding obstacles."
-    chat = ChatGenerator("llama_config.json")
+    
+    
     # 配置日志
-    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}.log',  # 日志文件名
+    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3.log',  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
                         level=logging.INFO,  # 日志级别
                         format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
@@ -1062,8 +1070,7 @@ def run_star(args):
         reachability_algorithm=args.reach_algo,
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
-        mode=mode,
-        instruction="Provide the answer in the following exact format without any additional explanation or text: Region <i>")
+        mode=mode)
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1154,28 +1161,12 @@ def run_star(args):
     duration = 0
     evaluations = []
     manager_ep_rew = 0
-    Region_lists_timesteps = []
-    Region_lists_regions = []
-    Region_lists_count = [None, 0]
     if not os.path.exists("./results/Regions"):
         os.makedirs("./results/Regions")
-    Region_lists_folder = f"./results/Regions/Region_lists_{args.env_name}_{args.algo}_{args.exp}_{args.seed}"
     adjacency_list = None
     
     # Train
     while total_timesteps < args.max_timesteps:
-        # if total_timesteps % args.region_freq == 0:
-        #     if Region_lists_count[0] is None:
-        #         Region_lists_count[0] = total_timesteps
-        #     Region_lists_timesteps.append(total_timesteps)
-        #     Region_lists_regions.append([G_ndI.inf + G_ndI.sup for G_ndI in boss_policy.G])
-        #     Region_lists_count[1] += 1
-        #     if Region_lists_count[1] == 50: # Save every 50 samples
-        #         with open(f"{Region_lists_folder}_{Region_lists_count[0]}_{total_timesteps}.json", "w") as f:
-        #             json.dump([Region_lists_timesteps, Region_lists_regions], f)
-        #         Region_lists_timesteps = []
-        #         Region_lists_regions = []
-        #         Region_lists_count = [None, 0]
         if done:
             if total_timesteps != 0 and not just_loaded:
                 if episode_num % 10 == 0:
@@ -1322,11 +1313,8 @@ def run_star(args):
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # Here we ask LLM to propose a target partition
             try:
-                prompt = boss_policy.prompt(state, start_partition_idx, goal, goal_partition, adjacency_list)
-                response = chat(prompt)
-                logging.info(f"Timestep: {total_timesteps} Done!\n{prompt}")
-                logging.info(f"> {response}")
-                target_partition_idx = int(response.split()[-1]) - 1
+                boss_policy.last_partition_idx = None
+                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
             except Exception as e:
                 logging.error(e)
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
@@ -1341,8 +1329,6 @@ def run_star(args):
             target_partition = np.array(target_partition_interval.inf + target_partition_interval.sup)
             prev_target_partition_idx = target_partition_idx
             prev_target_partition = target_partition
-
-            
 
             subgoal = manager_policy.sample_goal(state, target_partition)
 
@@ -1432,11 +1418,7 @@ def run_star(args):
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
             # Here we ask LLM to propose a target partition
             try:
-                prompt = boss_policy.prompt(state, start_partition_idx, goal, goal_partition, adjacency_list)
-                response = chat(prompt)
-                logging.info(f"Timestep: {total_timesteps}\n{prompt}")
-                logging.info(f"> {response}")
-                target_partition_idx = int(response.split()[-1]) - 1
+                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
             except Exception as e:
                 logging.error(e)
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
@@ -1477,13 +1459,6 @@ def run_star(args):
             manager_ep_rew = manager_transition[4]
             timesteps_since_subgoal = 0
             manager_transition = [state, None, target_partition, subgoal, 0, False, [state], []]
-
-    # if Region_lists_count[1] != 0:
-    #     with open(f"./results/Region_lists_{args.env_name}_{args.algo}_{args.exp}_{args.seed}_{Region_lists_count[0]}_{total_timesteps}.json", "w") as f:
-    #         json.dump([Region_lists_timesteps, Region_lists_regions], f)
-    #     Region_lists_timesteps = []
-    #     Region_lists_regions = []
-    #     Region_lists_count = [None, 0]
     
     # Final evaluation
     start_eval = time.time()
