@@ -1,6 +1,6 @@
 import argparse
 
-from star.train import run_hrac, run_star, run_hiro, run_gara
+from star.train import run_hrac, run_star, run_hiro, run_gara, test_star
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -88,6 +88,9 @@ if __name__ == "__main__":
 
     # Experiment Number
     parser.add_argument("--exp", default="0", type=str)
+    
+    # Test Parameters
+    parser.add_argument("--test", default=False, type=bool)
 
     # Run the algorithm
     args = parser.parse_args()
@@ -105,7 +108,10 @@ if __name__ == "__main__":
         print('{}: {}'.format(key, val))
 
     def run(args):
-        if args.algo == "hrac":
+        if args.test:
+            print("-----------Testing-----------")
+            test_star(args)
+        elif args.algo == "hrac":
             run_hrac(args)
         elif args.algo == "star":
             run_star(args)

@@ -331,6 +331,7 @@ class Boss(object):
                     no_reach.append(r)
         if reach:
             self.graph_update(start_partition, target_partition, reach, no_reach, replay_buffer)
+            self.chat_history = {} # clear chat history since the regions changed
 
     def test_reach(self, start_partition, target_partition, reach, replay_buffer):
         x, gs, y, gt, rl, rh = replay_buffer.target_sample(start_partition, target_partition, len(replay_buffer))
@@ -455,7 +456,7 @@ class Boss(object):
                                     instruction=self.instruction)
     
     def select_partition_chat(self, state, start_partition_idx, goal, logging=None):
-        if self.last_partition_idx is not None and self.last_state_region == state:
+        if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
             return self.last_partition_idx
         
         goal_partition_idx = self.identify_goal(goal)
@@ -473,7 +474,7 @@ class Boss(object):
             self.last_partition_idx = self.chat_history[chat_input]
             if logging:
                 logging.info(f"Chat: Exist Answer: {self.last_partition_idx}")
-            self.last_state_region = state
+            self.last_state_region = start_partition_idx
             return self.last_partition_idx
         
         maze = generate_maze_representation(regions, goal, state)
@@ -490,13 +491,13 @@ class Boss(object):
         if match:
             answer = int(match.group(1))
         else:
-            answer = start_partition_idx
+            answer = goal_partition_idx+1
             logging.warning(f"Chat: Response not match format!")
         self.chat_history[chat_input] = answer
         if logging:
             logging.info(f"Chat {self.chat.count}: New Answer: {answer}")
         self.last_partition_idx = answer
-        self.last_state_region = state
+        self.last_state_region = start_partition_idx
         return answer
         
     def train(self, forward_model, goal, transition_list, min_steps, batch_size=100, replay_buffer=[], tau1=0.8, tau2=0.2):     
@@ -544,13 +545,24 @@ class Boss(object):
         f.close()
         self.G = G
         
+        files = os.listdir(dir)
+        files_lower = {file.lower(): file for file in files} # lower case
+        
         # Load Q-table if policy is Q-learning
-        if os.path.exists("{}/{}_{}_BossQTable.npy".format(dir, env_name, algo)):
-            self.Q = np.load("{}/{}_{}_BossQTable.npy".format(dir, env_name, algo))
+        q_table_file = "{}_{}_BossQTable.npy".format(env_name, algo).lower()
+        if q_table_file in files_lower:
+            self.Q = np.load(os.path.join(dir, files_lower[q_table_file]))
+            print("- Q-table loaded successfully")
+        else:
+            raise FileNotFoundError(f"\"{dir}/{env_name}_{algo}_BossQTable.npy\" not exist")
 
         # Load automaton
-        if os.path.exists("{}/{}_{}_BossAutomaton.gpickle".format(dir, env_name, algo)):
-            self.automaton = nx.read_gpickle("{}/{}_{}_BossAutomaton.gpickle".format(dir, env_name, algo))
+        automaton_file = "{}_{}_BossAutomaton.gpickle".format(env_name, algo).lower()
+        if automaton_file in files_lower:
+            self.automaton = nx.read_gpickle(os.path.join(dir, files_lower[automaton_file]))
+            print("- Automaton loaded successfully")
+        else:
+            raise FileNotFoundError(f"\"{dir}/{env_name}_{algo}_BossAutomaton.gpickle\" not exist")
                             
 class Manager(object):
     def __init__(self, state_dim, goal_dim, action_dim, actor_lr,

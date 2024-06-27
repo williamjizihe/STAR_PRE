@@ -9,7 +9,7 @@ import numpy as np
 import copy
 from collections import deque
 from interval import interval
-
+import json
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -531,7 +531,7 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
             prompt += (f"Region {i+1}: {row}\n")
     
     if maze is not None:
-        prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the ant's current position, 'G' represents the goal. The number represents the region number:\n")
+        prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the agent's current position, 'G' represents the goal. The number represents the region number:\n")
         prompt += (maze)
     
     prompt += (
@@ -584,3 +584,14 @@ def generate_maze_representation(regions, goal, position):
     
     # Join all characters and form the final string
     return '\n'.join(' '.join(row) for row in char_maze)
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NumpyEncoder, self).default(obj)

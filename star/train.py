@@ -19,6 +19,7 @@ from envs.create_gather_env import create_gather_env
 import imageio
 import logging
 import yaml
+import json
 
 import csv
 from star.chat import ChatGenerator
@@ -106,8 +107,8 @@ def evaluate_policy(env, env_name, manager_policy, controller_policy,
         return avg_reward, avg_controller_rew, avg_step_count, avg_env_finish
 
 def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
-                    calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
-                    manager_propose_frequency=10, eval_idx=0, eval_episodes=5, save_goals=False, total_timesteps=0, logging=None):
+                    calculate_controller_reward, ctrl_rew_scale, logging, boss_propose_frequency=30,
+                    manager_propose_frequency=10, eval_idx=0, eval_episodes=5, save_goals=False, total_timesteps=0):
     print("Starting evaluation number {}...".format(eval_idx))
     env.evaluate = True
     avg_visits = np.zeros(len(boss_policy.G))
@@ -167,11 +168,11 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                     try:
-                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, start_partition_idx) - 1
+                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging) - 1
                     except Exception as e:
-                        target_partition_idx = boss_policy.select_partition(state, start_partition_idx, goal)
-                        if logging:
-                            logging.error("Error in evaluation: {}".format(e))
+                        logging.error("Error in evaluation: {}".format(e))
+                        target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                        
                     if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                         target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
                     elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:
@@ -269,6 +270,276 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
         env.evaluate = False
         return avg_reward, avg_controller_rew, avg_step_count, avg_env_finish, grid, adjacency_list
 
+def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
+                    calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
+                    manager_propose_frequency=10, eval_episodes=5, logging=None):
+    env.evaluate = True
+    avg_visits = np.zeros(len(boss_policy.G))
+    resolution = 50
+    g_low = [0, 0]
+    g_high = [20, 20]
+
+    with torch.no_grad():
+        avg_reward = 0.
+        avg_controller_rew = 0.
+        global_steps = 0
+        goals_achieved = 0
+        last_region = 0
+        next_region = 0
+        states_list = []
+        for eval_ep in range(eval_episodes):
+            print("Starting evaluation number {}...".format(eval_ep))
+            eval_states_list = []
+            visits = np.zeros((len(boss_policy.G)))
+            obs = env.reset()
+            goal = obs["desired_goal"]
+            if goal is not None:
+                goal_partition = boss_policy.identify_goal(goal)
+            else:
+                goal_partition = None
+
+            state = obs["observation"]
+            eval_states_list.append([[-1], [-1], [state.tolist()]])
+            new_state = state
+            start_partition_idx = boss_policy.identify_partition(state)
+            visits[start_partition_idx] += 1
+            last_region = start_partition_idx
+            done = False
+            step_count = 0
+            env_goals_achieved = 0
+            
+            boss_policy.last_partition_idx = None
+            while not done:
+                if step_count % boss_propose_frequency == 0:
+                    start_partition_idx = boss_policy.identify_partition(state)
+                    visits[start_partition_idx] += 1
+                    # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    try:
+                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
+                    except Exception as e:
+                        target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                        logging.error("Error in evaluation: {}".format(e))
+                    if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
+                        target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
+                    elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:
+                        target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[0]-1, goal[1]-1]+boss_policy.G[goal_partition].inf[2:], sup=[goal[0]+1, goal[1]+1]+boss_policy.G[goal_partition].sup[2:])
+                    else:
+                        target_partition_interval = boss_policy.G[target_partition_idx]
+                    target_partition = np.array(target_partition_interval.inf + target_partition_interval.sup)
+
+                if step_count % manager_propose_frequency == 0:
+                    subgoal = manager_policy.sample_goal(state, target_partition)
+                    x = max(min(int((subgoal[0] - g_low[0]) / (g_high[0] - g_low[0]) * resolution),resolution),0)
+                    y = max(min(int((subgoal[1] - g_low[1]) / (g_high[1] - g_low[1]) * resolution),resolution),0)
+                    grid[y, x] += 1
+                step_count += 1
+                global_steps += 1
+                action = controller_policy.select_action(state, subgoal, evaluation=True)
+                new_obs, reward, done, _ = env.step(action)
+                if env_name != "AntGather" and env.success_fn(reward):
+                    env_goals_achieved += 1
+                    goals_achieved += 1
+                    done = True
+
+                goal = new_obs["desired_goal"]
+                new_state = new_obs["observation"]
+                eval_states_list.append([[target_partition_idx], [subgoal.tolist()], [new_state.tolist()]])
+                next_region = boss_policy.identify_partition(new_state)
+                last_region = next_region
+                
+                subgoal = controller_policy.subgoal_transition(state, subgoal, new_state)
+                
+                x = max(min(int((subgoal[0] - g_low[0]) / (g_high[0] - g_low[0]) * resolution),resolution),0)
+                y = max(min(int((subgoal[1] - g_low[1]) / (g_high[1] - g_low[1]) * resolution),resolution),0)
+                grid[y, x] += 1
+
+                avg_reward += reward
+                avg_controller_rew += calculate_controller_reward(state, subgoal, new_state, ctrl_rew_scale)
+
+                state = new_state
+
+            final_partition_idx = boss_policy.identify_partition(state)
+            eval_states_list.append([[target_partition_idx], [subgoal.tolist()], [state.tolist()]])
+            avg_visits += visits
+            states_list.append(eval_states_list)
+
+        avg_visits /= eval_episodes
+
+        avg_reward /= eval_episodes
+        avg_controller_rew /= global_steps
+        avg_step_count = global_steps / eval_episodes
+        avg_env_finish = goals_achieved / eval_episodes
+
+        print("---------------------------------------")
+        print("Evaluation over {} episodes:\nAvg Ctrl Reward: {:.3f}".format(eval_episodes, avg_controller_rew))
+        if env_name == "AntGather":
+            print("Avg reward: {:.1f}".format(avg_reward))
+        else:
+            print("Goals achieved: {:.1f}%".format(100*avg_env_finish))
+        print("Avg Steps to finish: {:.1f}".format(avg_step_count))
+        print("---------------------------------------")
+        
+        env.evaluate = False
+        with open(f'test_{env_name}_states.json', 'w') as f:
+            json.dump(states_list, f, cls=utils.NumpyEncoder)
+        f.close()
+        return avg_reward, avg_controller_rew, avg_step_count, avg_env_finish, grid
+    
+def test_star(args):
+    if args.env_name == "AntGather":
+        env = GatherEnv(create_gather_env(args.env_name, args.seed), args.env_name)
+        env.seed(args.seed)   
+    elif args.env_name in ["AntMaze", "AntMazeSparse", "AntPush", "AntFall", "AntMazeCam", "PointMaze", "AntMazeStochastic", "2Rooms", "2RoomsCam", "3Rooms", "4Rooms"]:
+        env = EnvWithGoal(create_maze_env(args.env_name, args.seed), args.env_name)
+        env.seed(args.seed)
+    else:
+        raise NotImplementedError
+
+    if args.env_name in ["AntMaze", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms"]:
+        state_dims = None
+    elif args.env_name in ["AntMazeCam", "2RoomsCam"]:
+        state_dims = [0,1,3,4,5]
+    elif args.env_name in ["AntFall"]:    
+        state_dims = [0,1,2]
+    else:
+        state_dims = None
+    if state_dims:
+        low = np.array((-10, -10, -0.5, -1, -1, -1, -1,
+                -0.5, -0.3, -0.5, -0.3, -0.5, -0.3, -0.5, -0.3,-5,-5,-5,
+                -8,-8,-7,-8,-7,-8,-9,-8,-9,-8,-7,0.0000))
+    else:
+        low = np.array((-10, -10, -0.5, -1, -1, -1, -1,
+                    -0.5, -0.3, -0.5, -0.3, -0.5, -0.3, -0.5, -0.3))
+        
+    max_action = float(env.action_space.high[0])
+    policy_noise = 0.2
+    noise_clip = 0.5
+    high = -low
+
+    man_scale = (high - low) / 2
+    if state_dims:
+        new_man_scale = man_scale[state_dims]   
+    else:
+        new_man_scale = man_scale 
+
+    epsilon = args.boss_eps
+    
+    if state_dims:
+        controller_goal_dim = len(state_dims)
+    elif args.env_name == "AntFall":
+        controller_goal_dim = 3
+    else:
+        controller_goal_dim = 2
+
+    if args.absolute_goal:
+        man_scale[0] = 30
+        man_scale[1] = 30
+        no_xy = False
+    else:
+        no_xy = True
+    action_dim = env.action_space.shape[0]
+
+    obs = env.reset()
+
+    goal = obs["desired_goal"]
+    state = obs["observation"]
+
+    torch.cuda.set_device(args.gid)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    state_dim = state.shape[0]
+    if args.env_name in ["AntMaze", "AntPush", "AntFall", "AntMazeCam", "2RoomsCam", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms", "PointMaze"] and not state_dims:
+        goal_dim = goal.shape[0]
+        goal_cond = True
+    elif args.env_name in ["AntMaze", "AntPush", "AntFall", "AntMazeCam", "2RoomsCam", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms", "PointMaze"] and state_dims:
+        goal_dim = len(state_dims)
+        goal_cond = True
+    elif state_dims:
+        goal_dim = len(state_dims)
+        goal_cond = True
+    else:
+        goal_dim = args.boss_region_dim
+        goal_cond = False
+
+    resolution = 50
+    grid = np.zeros((resolution, resolution))
+    # Choose mode
+    if args.env_name in ["AntMaze", "AntPush", "AntFall", "AntMazeCam", "2Rooms", "3Rooms", "4Rooms", "PointMaze"]:
+        mode = "deterministic"
+    elif args.env_name in ["AntMazeStochastic"]:
+        mode = "stochastic"
+        
+    boss_policy = agents.Boss(
+        G_init=[],
+        state_dim=state_dim,
+        goal_dim=goal_dim,
+        policy=args.boss_policy,
+        reachability_algorithm=args.reach_algo,
+        goal_cond=goal_cond,
+        mem_capacity=args.boss_batch_size,
+        mode=mode)
+    boss_policy.load("./models", args.env_name, args.algo)
+    print("Boss policy loaded")
+    
+    controller_policy = agents.Controller(
+        state_dim=state_dim,
+        goal_dim=controller_goal_dim,
+        action_dim=action_dim,
+        max_action=max_action,
+        actor_lr=args.ctrl_act_lr,
+        critic_lr=args.ctrl_crit_lr,
+        no_xy=no_xy,
+        absolute_goal=args.absolute_goal,
+        policy_noise=policy_noise,
+        noise_clip=noise_clip
+    )
+    controller_policy.load("./models", args.env_name, args.algo)
+    print("Controller policy loaded")
+    
+    manager_policy = agents.Manager(
+        state_dim=state_dim,
+        goal_dim=2*goal_dim,
+        action_dim=controller_goal_dim,
+        actor_lr=args.man_act_lr,
+        critic_lr=args.man_crit_lr,
+        candidate_goals=args.candidate_goals,
+        correction=not args.no_correction,
+        scale=new_man_scale,
+        goal_loss_coeff=args.goal_loss_coeff,
+        absolute_goal=args.absolute_goal,
+        partitions=True
+    )
+    manager_policy.load("./models", args.env_name, args.algo)
+    print("Manager policy loaded")
+    
+    # Initialize forward model
+    if args.env_name in ["AntMaze", "AntPush", "AntFall", "AntMazeCam", "2Rooms", "3Rooms", "4Rooms", "PointMaze"]:
+        fwd_model = ForwardModel(state_dims, 2*goal_dim, args.fwd_hidden_dim, args.lr_fwd)
+    elif args.env_name in ["AntMazeStochastic"]:
+        fwd_model = StochasticForwardModel(state_dims, 2*goal_dim, args.fwd_hidden_dim, args.lr_fwd)
+    else:
+        raise NotImplementedError
+    fwd_model.load("./models", args.env_name, args.algo)
+    print("Forward model loaded")
+    
+    if state_dims:
+        calculate_controller_reward = get_reward_function(
+            state_dims, absolute_goal=args.absolute_goal, binary_reward=args.binary_int_reward)
+    else:
+        calculate_controller_reward = get_reward_function(
+            controller_goal_dim, absolute_goal=args.absolute_goal, binary_reward=args.binary_int_reward)
+    print("Starting test...")
+    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3_0626.log',  # 日志文件名
+                        filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
+                        level=logging.INFO,  # 日志级别
+                        format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
+    test_policy_star(env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
+                    calculate_controller_reward, args.ctrl_rew_scale, args.boss_propose_freq, args.manager_propose_freq, logging=logging)
+    return
+    
 def evaluate_policy_gara(env, env_name, goal_dim, grid, boss_policy, controller_policy,
                     calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
                     eval_idx=0, eval_episodes=5):
@@ -921,9 +1192,8 @@ def run_star(args):
     start_algo = time.time()
     # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate region for the agent to explore next, avoiding obstacles."
     
-    
     # 配置日志
-    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3.log',  # 日志文件名
+    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3_t2.log',  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
                         level=logging.INFO,  # 日志级别
                         format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
@@ -1246,7 +1516,7 @@ def run_star(args):
                     timesteps_since_eval = 0
                     start_eval = time.time()
                     avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid, adjacency_list = evaluate_policy_star(env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
-                            calculate_controller_reward, args.ctrl_rew_scale, args.boss_propose_freq, args.manager_propose_freq,
+                            calculate_controller_reward, args.ctrl_rew_scale, logging, args.boss_propose_freq, args.manager_propose_freq,
                             len(evaluations), total_timesteps=total_timesteps)
                     end_eval = time.time()
                     duration_eval = end_eval - start_eval
@@ -1438,7 +1708,7 @@ def run_star(args):
             boss_reward = -100
         if timesteps_since_subgoal % args.manager_propose_freq == 0:
             manager_transition[1] = state
-            manager_transition[5] = float(done)        
+            manager_transition[5] = float(done)
             
             manager_buffer.add(manager_transition)
             subgoal = manager_policy.sample_goal(state, target_partition)
@@ -1463,8 +1733,7 @@ def run_star(args):
     # Final evaluation
     start_eval = time.time()
     avg_ep_rew, avg_controller_rew, avg_steps, avg_env_finish, grid, adjacency_list = evaluate_policy_star(
-        env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy, calculate_controller_reward,
-        args.ctrl_rew_scale, args.boss_propose_freq, args.manager_propose_freq, len(evaluations))
+        env, args.env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy, calculate_controller_reward,args.ctrl_rew_scale, logging, args.boss_propose_freq, args.manager_propose_freq, len(evaluations))
     end_eval = time.time()
     duration_eval = end_eval - start_eval
 
