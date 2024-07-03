@@ -528,7 +528,7 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
         for i, row in adjacency_list.items():
             # if len(row) == 0:
             #     continue
-            prompt += (f"Region {i+1}: {row}\n")
+            prompt += (f"Region {i}: {row}\n")
     
     if maze is not None:
         prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the agent's current position, 'G' represents the goal. The number represents the region number:\n")
@@ -595,3 +595,57 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         else:
             return super(NumpyEncoder, self).default(obj)
+
+def are_adjacent(region1, region2):
+    wx_low, wx_high, wy_low, wy_high = -4, 16, 8, 16
+
+    # 分别提取两个矩形的坐标
+    x1_low, x1_high, y1_low, y1_high = region1[0], region1[2], region1[1], region1[3]
+    x2_low, x2_high, y2_low, y2_high = region2[0], region2[2], region2[1], region2[3]
+ 
+    # 检查x方向上的相邻情况
+    if (x1_high == x2_low or x1_low == x2_high) and ((y1_low <= y2_high and y1_high >= y2_high) or (y1_low <= y2_low and y1_high >= y2_low)):
+        x_edge = x1_high if x1_high == x2_low else x1_low
+        y_edge_low, y_edge_high = max(y1_low, y2_low), min(y1_high, y2_high)
+        # print('x_edge:', x_edge)
+        # print('y_edge_low:', y_edge_low, 'y_edge_high:', y_edge_high)
+        if y_edge_low == y_edge_high:
+            return False
+        if x_edge <= wx_high and x_edge >= wx_low:
+            if y_edge_low >= wy_low and y_edge_high <= wy_high:
+                return False
+        return True
+
+    # 检查y方向上的相邻情况
+    if (y1_high == y2_low or y1_low == y2_high) and ((x1_low <= x2_high and x1_high >= x2_high) or (x1_low <= x2_low and x1_high >= x2_low)):
+        y_edge = y1_high if y1_high == y2_low else y1_low
+        x_edge_low, x_edge_high = max(x1_low, x2_low), min(x1_high, x2_high)
+        # print('y_edge:', y_edge)
+        # print('x_edge_low:', x_edge_low, 'x_edge_high:', x_edge_high)
+        if x_edge_low == x_edge_high:
+            return False
+        if y_edge <= wy_high and y_edge >= wy_low:
+            if x_edge_low >= wx_low and x_edge_high <= wx_high:
+                return False
+        return True
+
+    return False
+
+def generate_adjacency_list(regions):
+    adjacency_list = {i: [] for i in range(1, len(regions) + 1)}
+    
+    for i in range(len(regions)):
+        for j in range(i + 1, len(regions)):
+            # print('i:', i+1, 'j:', j+1)
+            if are_adjacent(regions[i], regions[j]):
+                adjacency_list[i + 1].append(j + 1)
+                adjacency_list[j + 1].append(i + 1)
+
+    return adjacency_list
+
+if __name__ == '__main__':
+    # 示例矩形列表
+    regions = [[0.0, 0.0, 8.0, 8.0], [8.0, 0.0, 20.0, 8.0], [8.0, 8.0, 20.0, 20.0], [0.0, 8.0, 8.0, 20.0]]
+
+    adjacency_list = generate_adjacency_list(regions)
+    print(adjacency_list)

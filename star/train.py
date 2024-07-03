@@ -168,7 +168,7 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                     try:
-                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging) - 1
+                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging)
                     except Exception as e:
                         logging.error("Error in evaluation: {}".format(e))
                         target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
@@ -315,7 +315,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                     try:
-                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
+                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
                     except Exception as e:
                         target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                         logging.error("Error in evaluation: {}".format(e))
@@ -532,7 +532,10 @@ def test_star(args):
         calculate_controller_reward = get_reward_function(
             controller_goal_dim, absolute_goal=args.absolute_goal, binary_reward=args.binary_int_reward)
     print("Starting test...")
-    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3_0626.log',  # 日志文件名
+    log_date = time.strftime("%Y-%m-%d", time.localtime())
+    log_filename = f'logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
+    print(f'Logging to {log_filename}')
+    logging.basicConfig(filename=log_filename,  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
                         level=logging.INFO,  # 日志级别
                         format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
@@ -1193,7 +1196,11 @@ def run_star(args):
     # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate region for the agent to explore next, avoiding obstacles."
     
     # 配置日志
-    logging.basicConfig(filename=f'logging_{args.env_name}_{args.algo}_LLAMA3_t2.log',  # 日志文件名
+    # m-d-H-M
+    log_date = time.strftime("%m-%d-%H-%M", time.localtime())
+    log_filename = f'logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
+    print(f'Logging in {log_filename}')
+    logging.basicConfig(filename=log_filename,  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
                         level=logging.INFO,  # 日志级别
                         format='%(asctime)s - %(levelname)s - %(message)s')  # 日志格式
@@ -1223,7 +1230,7 @@ def run_star(args):
         state_dims = None
     elif args.env_name in ["AntMazeCam", "2RoomsCam"]:
         state_dims = [0,1,3,4,5]
-    elif args.env_name in ["AntFall"]:    
+    elif args.env_name in ["AntFall"]:
         state_dims = [0,1,2]
     else:
         state_dims = None
@@ -1331,7 +1338,7 @@ def run_star(args):
         mode = "deterministic"
     elif args.env_name in ["AntMazeStochastic"]:
         mode = "stochastic"
-
+    
     boss_policy = agents.Boss(
         G_init=G_init,
         state_dim=state_dim,
@@ -1341,6 +1348,8 @@ def run_star(args):
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
         mode=mode)
+    # boss_policy.load("./models", args.env_name, args.algo)
+    # print("Boss policy loaded")
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1354,7 +1363,9 @@ def run_star(args):
         policy_noise=policy_noise,
         noise_clip=noise_clip
     )
-
+    controller_policy.load("./models", args.env_name, args.algo)
+    print("Controller policy loaded")
+    
     manager_policy = agents.Manager(
         state_dim=state_dim,
         goal_dim=2*goal_dim,
@@ -1368,7 +1379,9 @@ def run_star(args):
         absolute_goal=args.absolute_goal,
         partitions=True
     )
-
+    manager_policy.load("./models", args.env_name, args.algo)
+    print("Manager policy loaded")
+    
     if state_dims:
         calculate_controller_reward = get_reward_function(
             state_dims, absolute_goal=args.absolute_goal, binary_reward=args.binary_int_reward)
@@ -1584,7 +1597,7 @@ def run_star(args):
             # Here we ask LLM to propose a target partition
             try:
                 boss_policy.last_partition_idx = None
-                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
+                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
             except Exception as e:
                 logging.error(e)
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
@@ -1688,7 +1701,7 @@ def run_star(args):
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
             # Here we ask LLM to propose a target partition
             try:
-                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging) - 1
+                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
             except Exception as e:
                 logging.error(e)
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
