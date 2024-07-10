@@ -138,11 +138,20 @@ class Boss(object):
         self.splits = []
         self.mode = mode
         # Llama3
-        self.chat = ChatGenerator(max_seq_len=2048, max_gen_len=512, system_prompt="As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.")
+        self.system_prompt = ("As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.\n"
+        "Thinking Process:\n"
+        "1. Identify the agent's current region, identify the goal region\n"
+        "2. Identify where is the wall.\n"
+        "3. Examine the adjacency list to see which regions connect to the current region.\n"
+        "4. Observe the maze to see which other regions are also connected to the current region.\n"
+        "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
+)
+        # self.chat = ChatGenerator(max_seq_len=4096, max_gen_len=1024, system_prompt=self.system_prompt)
         with open('./shot.yaml', 'r') as f:
-            shot = yaml.load(f, Loader=yaml.FullLoader)
+            self.shot = yaml.load(f, Loader=yaml.FullLoader)
         f.close()
-        self.chat.save_shot(shot)
+        self.shot_txt = "\n\n".join(f"{item['role']}: {item['content']}" for item in self.shot)
+        # self.chat.save_shot(self.shot)
         self.chat_history = {}
         self.last_partition_idx = None
         self.last_state_region = None
@@ -262,7 +271,7 @@ class Boss(object):
 
     def split(self, forward_model, start_partition, target_partition, replay_buffer=[], tau1=0.8, tau2=0.2):
         """Split the partition into two partitions according to reachability analysis"""
-
+        return # We don't update the partitions
         model = forward_model
 
         input_lower = self.G[start_partition].inf + self.G[target_partition].inf + self.G[target_partition].sup
@@ -443,7 +452,61 @@ class Boss(object):
             adjacency_dict[node] = list(self.automaton.successors(node))
         return adjacency_dict
     
+    # def select_partition_chat(self, state, start_partition_idx, goal, logging=None):
+    #     if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
+    #         return self.last_partition_idx - 1
+        
+    #     goal_partition_idx = self.identify_goal(goal)
+    #     if start_partition_idx == goal_partition_idx:
+    #         return start_partition_idx
+        
+    #     # 转为最近的.5
+    #     state = tuple([round(n*2)/2 for n in state[:self.goal_dim]])
+    #     goal = tuple([round(n*2)/2 for n in goal[:self.goal_dim]])
+        
+    #     regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
+    #     # combine automaton and adjacency list
+    #     adjacency_dict = generate_adjacency_list(regions)
+    #     # adjacency_dict = {i+1:[] for i in range(len(regions))}
+    #     tup_regions = tuple([tuple(region) for region in regions])
+    #     chat_input = (state, goal, start_partition_idx, goal_partition_idx, tup_regions)
+
+    #     if chat_input in self.chat_history:
+    #         self.last_partition_idx = self.chat_history[chat_input]
+    #         if logging:
+    #             logging.info(f"Chat: Exist Answer: {self.last_partition_idx}\nState: {state}\nGoal: {goal}\nStart: {start_partition_idx}\nGoal: {goal_partition_idx}")
+    #         self.last_state_region = start_partition_idx
+    #         return self.last_partition_idx - 1
+        
+    #     maze = generate_maze_representation(regions, goal, state)
+    #     prompt = generate_user_prompt(state, start_partition_idx+1, goal, goal_partition_idx+1, 
+    #                                 adjacency_list=adjacency_dict,
+    #                                 maze=maze,
+    #                                 instruction=self.instruction)
+    #     time1 = time.time()
+    #     response = self.chat(prompt)
+    #     time2 = time.time()
+    #     last_line = response.strip().split("\n")[-1]
+    #     match = re.search(r"Region (\d+)", last_line)
+        
+    #     if logging:
+    #         logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}\nTime: {time2-time1}")
+    #     if match:
+    #         answer = int(match.group(1))
+    #     else:
+    #         answer = goal_partition_idx + 1
+    #         logging.warning(f"Chat: Response not match format!")
+    #     self.chat_history[chat_input] = answer
+    #     if logging:
+    #         logging.info(f"Chat {self.chat.count}: New Answer: {answer}")
+    #     self.last_partition_idx = answer
+    #     self.last_state_region = start_partition_idx
+    #     return answer - 1
+    
     def select_partition_chat(self, state, start_partition_idx, goal, logging=None):
+        '''
+        We use GPT4 to select the partition
+        '''
         if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
             return self.last_partition_idx - 1
         
@@ -458,15 +521,14 @@ class Boss(object):
         regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
         # combine automaton and adjacency list
         adjacency_dict = generate_adjacency_list(regions)
-        logging.info(f"Regions: {regions}")
-        logging.info(f"Adjacency: {adjacency_dict}")
+        # adjacency_dict = {i+1:[] for i in range(len(regions))}
         tup_regions = tuple([tuple(region) for region in regions])
         chat_input = (state, goal, start_partition_idx, goal_partition_idx, tup_regions)
 
         if chat_input in self.chat_history:
             self.last_partition_idx = self.chat_history[chat_input]
             if logging:
-                logging.info(f"Chat: Exist Answer: {self.last_partition_idx}")
+                logging.info(f"Chat: Exist Answer: {self.last_partition_idx}\nState: {state}\nGoal: {goal}\nStart: {start_partition_idx}\nGoal: {goal_partition_idx}")
             self.last_state_region = start_partition_idx
             return self.last_partition_idx - 1
         
@@ -475,26 +537,18 @@ class Boss(object):
                                     adjacency_list=adjacency_dict,
                                     maze=maze,
                                     instruction=self.instruction)
-        time1 = time.time()
-        response = self.chat(prompt)
-        time2 = time.time()
-        last_line = response.strip().split("\n")[-1]
-        match = re.search(r"Region (\d+)", last_line)
         
-        if logging:
-            logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}\nTime: {time2-time1}")
-        if match:
-            answer = int(match.group(1))
-        else:
-            answer = goal_partition_idx + 1
-            logging.warning(f"Chat: Response not match format!")
+        logging.info(f"ChatGPT:\nPrompt: {self.system_prompt}\n{self.shot_txt}\n{prompt}")
+        response = input("Response: ")
+        answer = int(response)
+        logging.info(f"New Answer: {answer}")
+        
         self.chat_history[chat_input] = answer
-        if logging:
-            logging.info(f"Chat {self.chat.count}: New Answer: {answer}")
+
         self.last_partition_idx = answer
         self.last_state_region = start_partition_idx
         return answer - 1
-        
+    
     def train(self, forward_model, goal, transition_list, min_steps, batch_size=100, replay_buffer=[], tau1=0.8, tau2=0.2):     
         for goal_pair in transition_list:
              if goal_pair not in self.automaton.edges() \

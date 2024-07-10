@@ -507,8 +507,8 @@ def manager_mapping(grid, g_low, g_high, file, resolution=100):
 def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=None, maze=None, instruction=None):
     prompt = (
         "Data:\n"
-        f"- State: {state}, Region {r1}\n"
-        f"- Goal: {goal}, Region {r2}\n"
+        f"State: {state}, Region {r1}\n"
+        f"Goal: {goal}, Region {r2}\n"
     )
     
     # if coordination is not None:
@@ -524,23 +524,23 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
     #         #     continue
     #         prompt += (f"Region {k+1}: {v}\n")
     if adjacency_list is not None:
-        prompt += ("- Adjacency list:\n")
+        prompt += ("Adjacency list:\n")
         for i, row in adjacency_list.items():
             # if len(row) == 0:
             #     continue
             prompt += (f"Region {i}: {row}\n")
     
     if maze is not None:
-        prompt += ("-The top-down view of the maze is shown below, 'W' represents walls, 'A' represents the agent's current position, 'G' represents the goal. The number represents the region number:\n")
+        prompt += ("The top-down view of the maze is shown below, W represents walls, A represents the agent's current position, G represents the goal. The number represents the region number:\n")
         prompt += (maze)
     
     prompt += (
-        "\nThinking Process:\n"
-        "1. Identify the agent's current region, identify the goal region\n"
-        "2. Identify where is the wall.\n"
-        "3. Examine the adjacency list to see which regions connect to the current region.\n"
-        "4. Observe the maze to see which other regions are also connected to the current region.\n"
-        "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
+        # "\nThinking Process:\n"
+        # "1. Identify the agent's current region, identify the goal region\n"
+        # "2. Identify where is the wall.\n"
+        # "3. Examine the adjacency list to see which regions connect to the current region.\n"
+        # "4. Observe the maze to see which other regions are also connected to the current region.\n"
+        # "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
         "\nBased on the analysis, identify the most strategic next region to explore and format your answer as follows: Answer: Region <i>"
     )
     # prompt += ("\nProvide the answer in the following exact format without any additional explanation or text: Region <i>\n")

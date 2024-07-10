@@ -3,27 +3,35 @@ import json
 import time
 import yaml
 
-# system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles, then name each region with a unique name understandable by the user to help him follow your instructions."
+system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, name the adjacent regions with a unique name understandable by the user to help him follow your instructions."
 # system_prompt = "In this task, You are a navigation assistant, helping agent to reach the goal. Based on the data, determine the most appropriate next region for the agent to explore, avoiding obstacles."
 # system_prompt = "In this task, You are an assistant"
-system_prompt = "As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections."
+# system_prompt = ("As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.\n"
+#                  "Thinking Process:\n"
+# "1. Identify the agent's current region, identify the goal region\n"
+# "2. Identify where is the wall.\n"
+# "3. Examine the adjacency list to see which regions connect to the current region.\n"
+# "4. Observe the maze to see which other regions are also connected to the current region.\n"
+# "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
+# )
 
-chat = ChatGenerator(system_prompt=system_prompt, max_batch_size=1, max_seq_len = 2048, max_gen_len = 512)
+chat = ChatGenerator(system_prompt=system_prompt, max_batch_size=1, max_seq_len = 4096, max_gen_len = 2048)
 # with open("./QLLaMa/input.txt") as f:
 #     user_prompt3 = f.read()
 # f.close()
-with open('./QLLaMa/shot.yaml', 'r') as f:
+with open('./QLLaMa/name_shot.yaml', 'r') as f:
     shot = yaml.load(f, Loader=yaml.FullLoader)
 f.close()
+print(shot[0]['content'])
 chat.save_shot(shot)
 
-with open('./QLLaMa/input.yaml', 'r') as f:
-    inputs = yaml.load(f, Loader=yaml.FullLoader)
+with open('./QLLaMa/AntMaze_930000_Prompt_AM.txt', 'r') as f:
+    input = f.read()
 f.close()
-input = inputs[0]
+
 # print(type(dialogs))
 # print(dialogs)
-for _ in range(5):
+for _ in range(1):
     time1 = time.time()
     results = chat(input)
     time2 = time.time()
@@ -32,9 +40,7 @@ for _ in range(5):
 for msg in shot:
     print(f"{msg['role'].capitalize()}: {msg['content']}\n")
 
-for msg in inputs:
-    print(f"{msg['role'].capitalize()}: {msg['content']}\n")
-    
+print('User:', input)
 
 print(
     f"> Assistant: {results}"

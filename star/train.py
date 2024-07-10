@@ -272,7 +272,7 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
 
 def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy, controller_policy,
                     calculate_controller_reward, ctrl_rew_scale, boss_propose_frequency=30,
-                    manager_propose_frequency=10, eval_episodes=5, logging=None):
+                    manager_propose_frequency=10, eval_episodes=1, logging=None):
     env.evaluate = True
     avg_visits = np.zeros(len(boss_policy.G))
     resolution = 50
@@ -289,6 +289,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
         states_list = []
         for eval_ep in range(eval_episodes):
             print("Starting evaluation number {}...".format(eval_ep))
+            logging.info("Starting evaluation number {}...".format(eval_ep))
             eval_states_list = []
             visits = np.zeros((len(boss_policy.G)))
             obs = env.reset()
@@ -340,6 +341,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
                     env_goals_achieved += 1
                     goals_achieved += 1
                     done = True
+                    logging.info("Goal achieved")
 
                 goal = new_obs["desired_goal"]
                 new_state = new_obs["observation"]
@@ -471,9 +473,14 @@ def test_star(args):
         mode = "deterministic"
     elif args.env_name in ["AntMazeStochastic"]:
         mode = "stochastic"
-        
+    
+    G_init = [utils.ndInterval(goal_dim, inf=[0,0], sup=[8,8]),
+                utils.ndInterval(goal_dim, inf=[8,0], sup=[20,8]),
+                utils.ndInterval(goal_dim, inf=[8,8], sup=[20,20]),
+                utils.ndInterval(goal_dim, inf=[0,8], sup=[8,20])
+                ]
     boss_policy = agents.Boss(
-        G_init=[],
+        G_init=G_init,
         state_dim=state_dim,
         goal_dim=goal_dim,
         policy=args.boss_policy,
@@ -532,8 +539,9 @@ def test_star(args):
         calculate_controller_reward = get_reward_function(
             controller_goal_dim, absolute_goal=args.absolute_goal, binary_reward=args.binary_int_reward)
     print("Starting test...")
-    log_date = time.strftime("%Y-%m-%d", time.localtime())
-    log_filename = f'logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
+    # Time type m-d-h-m
+    log_date = time.strftime("%m-%d-%H-%M", time.localtime())
+    log_filename = f'./logging/test_logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
     print(f'Logging to {log_filename}')
     logging.basicConfig(filename=log_filename,  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
@@ -1198,7 +1206,7 @@ def run_star(args):
     # 配置日志
     # m-d-H-M
     log_date = time.strftime("%m-%d-%H-%M", time.localtime())
-    log_filename = f'logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
+    log_filename = f'./logging/logging_{args.env_name}_{args.algo}_LLAMA3_{log_date}.log'
     print(f'Logging in {log_filename}')
     logging.basicConfig(filename=log_filename,  # 日志文件名
                         filemode='a',  # 'a' 为追加模式（默认），'w' 为覆盖模式
@@ -1348,8 +1356,8 @@ def run_star(args):
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
         mode=mode)
-    # boss_policy.load("./models", args.env_name, args.algo)
-    # print("Boss policy loaded")
+    boss_policy.load("./models", args.env_name, args.algo)
+    print("Boss policy loaded")
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1363,8 +1371,8 @@ def run_star(args):
         policy_noise=policy_noise,
         noise_clip=noise_clip
     )
-    controller_policy.load("./models", args.env_name, args.algo)
-    print("Controller policy loaded")
+    # controller_policy.load("./models", args.env_name, args.algo)
+    # print("Controller policy loaded")
     
     manager_policy = agents.Manager(
         state_dim=state_dim,
@@ -1379,8 +1387,8 @@ def run_star(args):
         absolute_goal=args.absolute_goal,
         partitions=True
     )
-    manager_policy.load("./models", args.env_name, args.algo)
-    print("Manager policy loaded")
+    # manager_policy.load("./models", args.env_name, args.algo)
+    # print("Manager policy loaded")
     
     if state_dims:
         calculate_controller_reward = get_reward_function(
@@ -1446,7 +1454,6 @@ def run_star(args):
     manager_ep_rew = 0
     if not os.path.exists("./results/Regions"):
         os.makedirs("./results/Regions")
-    adjacency_list = None
     
     # Train
     while total_timesteps < args.max_timesteps:
