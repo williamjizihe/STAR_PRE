@@ -1,8 +1,6 @@
 from typing import List, Optional
 from myllama import Llama
-import json
 import copy
-import time
 
 class ChatGenerator:
     def __init__(self, 
@@ -30,6 +28,7 @@ class ChatGenerator:
         self.seed = seed
         self.shot_tokens = None
         self.head_tokens = None
+        self.count = 0
         
         # Initialize the generator model
         self.generator = Llama.build(
@@ -45,7 +44,7 @@ class ChatGenerator:
         # Load user prompts once
         # with open("user_prompt.json", 'r') as f:
         #     self.user_prompt = json.load(f)[1]
-    def __call__(self, message) -> str:
+    def __call__(self, prompt) -> str:
         """
         Generate a response to the user input using the model.
 
@@ -55,9 +54,8 @@ class ChatGenerator:
         Returns:
         str: The generated response.
         """
-        time1 = time.time()
         tokens = copy.deepcopy(self.shot_tokens)
-        tokens.extend(self.generator.formatter.encode_message(message))
+        tokens.extend(self.generator.formatter.encode_message({"role": "user", "content": prompt}))
         tokens.extend(self.head_tokens)
         
         generation_tokens = self.generator.generate(
@@ -66,8 +64,7 @@ class ChatGenerator:
             temperature=self.temperature,
             top_p=self.top_p
         )
-        time2 = time.time()
-        print("Time taken for prompt: ", time2-time1)
+        self.count += 1
         return self.generator.tokenizer.decode(generation_tokens[0])
 
     def save_shot(self, shot):
@@ -78,11 +75,3 @@ class ChatGenerator:
             tokens.extend(self.generator.formatter.encode_message(message))
         self.shot_tokens = tokens
         return
-
-if __name__ == '__main__':
-    system_prompt = "You are the navigation assistant for an ant. Your task is to name each region with a unique name."
-    chat_gen = ChatGenerator(system_prompt=system_prompt)
-    response = chat_gen("What should the next region be named?")
-    print(response)
-    response = chat_gen("What should the next region be named?")
-    print(response)

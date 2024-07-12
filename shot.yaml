@@ -1,17 +1,47 @@
 - role: user 
-  content: "Data:\nState: [0, 0], Region 1\nGoal: [0, 15], Region 4\nAdjacency list\
-    \ details the connections between regions: \n1: [2]\n2: []\n3: []\n4: []\nThe\
-    \ top-down view of the maze is shown below, 'W' represents walls, 'A' represents\
-    \ the ant's current position, 'G' represents the goal. The number represents the\
-    \ region number:\n4 4 3 3 \nG 4 3 3 \nW W W 3 \n1 1 2 2 \nA 1 2 2 \n\nThinking\
-    \ Process:\n1. Identify the agent's current region, identify the goal region\n\
-    2. Identify where is the wall.\n3. Examine the adjacency list to see which regions\
-    \ connect to the current region.\n4. Observe the maze to see which other regions\
-    \ are also connected to the current region.\n5. From these connected regions,\
-    \ choose the one that moves closest to the goal without hitting walls.\n\nBased\
-    \ on the above analysis, what is the most strategic next region for the agent\
-    \ to explore? Answer format: Region <i>."
-- role: assistant  
+  content: 'Data:
+
+    State: [0, 0], Region 1
+
+    Goal: [0, 15], Region 4
+
+    Adjacency list details the connections between regions:
+
+    1: [2]
+
+    2: []
+
+    3: []
+
+    4: []
+
+    The top-down view of the maze is shown below, W represents walls, A represents the agent''s current position, G represents the goal. The number represents the region number:
+
+    4 4 3 3
+
+    G 4 3 3
+
+    W W W 3
+
+    1 1 2 2
+
+    A 1 2 2
+
+    
+    Thinking Process:
+
+    1. Identify the agent''s current region, identify the goal region
+
+    2. Identify where is the wall.
+
+    3. Examine the adjacency list to see which regions connect to the current region.
+
+    4. Observe the maze to see which other regions are also connected to the current region.
+
+    5. From these connected regions, choose the one that moves closest to the goal without hitting walls.
+
+    Based on the above analysis, what is the most strategic next region for the agent to explore? Answer format: Region <i>.'
+- role: assistant
   content: '1. The ant''s current position (A) is in Region 1. The goal (G) is in
     Region 4.
 
@@ -29,3 +59,124 @@
     regions leading towards the goal.
 
     Answer: Region 2'
+- role: user 
+  content: 'Data:
+
+    State: [18, 16], Region 3
+
+    Goal: [0, 15], Region 4
+
+    Adjacency list details the connections between regions:
+
+    1: [2]
+
+    2: [1, 3]
+
+    3: [2, 4]
+
+    4: [3]
+
+    The top-down view of the maze is shown below, W represents walls, A represents the agent''s current position, G represents the goal. The number represents the region number:
+
+    0 4 4 3 3
+
+    0 G 4 3 3
+
+    0 W W W A
+
+    0 1 1 2 2
+
+    0 0 0 0 0
+    
+    Thinking Process:
+
+    1. Identify the agent''s current region, identify the goal region
+
+    2. Identify where is the wall.
+
+    3. Examine the adjacency list to see which regions connect to the current region.
+
+    4. Observe the maze to see which other regions are also connected to the current region.
+
+    5. From these connected regions, choose the one that moves closest to the goal without hitting walls.
+
+    Based on the thinking process, what is the most strategic next region for the agent to explore? Answer format: Region <i>.'
+- role: assistant
+  content: '1. The ant''s current position (A) is in Region 3. The goal (G) is in
+    Region 4.
+
+    2. There is a wall blocking the direct path north from Region 1 to Region 4.
+
+    3. Region 4 and region 2 is directly connected to Region 3.
+
+    4. Looking at the maze layout, Region 3 is directly connected to both Region 2 and Region 4. The only wall present blocks the northward movement from Region 1 to Region 4, but this does not affect movement from Region 3 to Region 4.
+
+    5. Since the goal is located in Region 4, and there are no walls between Region 3 (current position) and Region 4, the most strategic move for the agent would be directly into Region 4. This is the only region among the connected ones that leads directly to the goal without any barriers.
+
+    Answer: Region 4'
+- role: user 
+  content: 'Data:
+
+    State: (8.5, 2.0), Region 2
+
+    Goal: (1.0, 13.5), Region 4
+
+    Adjacency list details the connections between regions:
+
+    Region 1: [7, 10, 11]
+
+    Region 2: [3, 6, 8]
+
+    Region 3: [2, 4]
+
+    Region 4: [3]
+
+    Region 5: [6, 8, 11]
+
+    Region 6: [2, 5, 8]
+
+    Region 7: [1, 9, 10]
+
+    Region 8: [2, 5, 6, 9, 11]
+
+    Region 9: [7, 8, 10, 11]
+
+    Region 10: [1, 7, 9]
+
+    Region 11: [1, 5, 8, 9]
+
+    The top-down view of the maze is shown below, W represents walls, A represents the agent''s current position, G represents the goal. The number represents the region number:
+
+    0 4 G 4 4 4 4 4 4 3 3 3
+
+    W W W W W W W W W W W 3
+
+    W W W W W W W W W W W 3
+
+    W W W W W W W W W W W 3
+
+    0 11 11 11 11 11 11 5 6 2 2 2
+
+    0 11 11 11 11 11 11 8 8 2 2 2
+
+    0 1 1 1 10 10 9 8 8 2 2 2
+
+    0 1 1 1 10 10 9 8 8 A 2 2
+
+    0 1 1 1 7 9 9 8 8 2 2 2
+
+    0 0 0 0 0 0 0 0 0 0 0 0
+    
+    Based on the thinking process, what is the most strategic next region for the agent to explore? Answer format: Region <i>.'
+- role: assistant
+  content: '1. The agent''s current position (A) is in Region 2. The goal (G) is in Region 4.
+
+  2. The maze layout and adjacency list show that Region 2 connects directly to Regions 3, 6, and 8.
+
+  3. To reach the goal located in Region 4, the agent must first pass through Region 3, as it is the only region that directly connects to the goal.
+
+  4. Observing the maze layout, there are no walls obstructing the path from Region 2 to Region 3 and subsequently from Region 3 to Region 4.
+
+  5. Given the connectivity and absence of barriers along the path from Region 2 through Region 3 to Region 4, the most strategic next region for the agent to explore, moving him closest to the goal, is Region 3. 
+
+  Answer: Region 3'

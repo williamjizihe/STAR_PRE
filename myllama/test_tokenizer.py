@@ -3,7 +3,7 @@
 
 import os
 from unittest import TestCase
-from myllama.tokenizer import ChatFormat, Tokenizer
+from tokenizer import ChatFormat, Tokenizer
 
 # TOKENIZER_PATH=<path> python -m unittest llama/test_tokenizer.py
 

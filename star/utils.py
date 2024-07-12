@@ -10,6 +10,8 @@ import copy
 from collections import deque
 from interval import interval
 import json
+import networkx as nx
+import math
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -37,6 +39,12 @@ class ndInterval:
                 return False
         return True
 
+    def dist(self, item):
+        dist = 0
+        for i in range(self.n):
+            dist += abs(self.inf[i] - item[i])
+        return dist
+    
     def volume(self):
         volume = 1
         for i in range(self.n):
@@ -643,9 +651,65 @@ def generate_adjacency_list(regions):
 
     return adjacency_list
 
+def calculate_center(region):
+    x_center = (region[0] + region[2]) / 2
+    y_center = (region[1] + region[3]) / 2
+    return (x_center, y_center)
+
+# 计算两个点之间的欧氏距离
+def calculate_distance(point1, point2):
+    return math.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
+# 生成带权重的邻接图
+def generate_adjacency_graph(regions):
+    G = nx.Graph()
+    
+    for i in range(len(regions)):
+        G.add_node(i + 1, center=calculate_center(regions[i]))
+    
+    for i in range(len(regions)):
+        for j in range(i + 1, len(regions)):
+            if are_adjacent(regions[i], regions[j]):
+                center1 = calculate_center(regions[i])
+                center2 = calculate_center(regions[j])
+                distance = calculate_distance(center1, center2)
+                G.add_edge(i + 1, j + 1, weight=distance)
+
+    return G
+
 if __name__ == '__main__':
     # 示例矩形列表
-    regions = [[0.0, 0.0, 8.0, 8.0], [8.0, 0.0, 20.0, 8.0], [8.0, 8.0, 20.0, 20.0], [0.0, 8.0, 8.0, 20.0]]
+    regions = [
+        [6.0,2.0,8,4.0],
+        [8,4.0,14.0,6.0],
+        [8,14.0,11.0,20],
+        [0,8,8,20],
+        [0,0.0,4.0,4.0],
+        [4.0,2.0,6.0,3.0],
+        [4.0,3.0,6.0,4.0],
+        [2.0,4.0,4.0,6.0],
+        [0,4.0,2.0,6.0],
+        [0.0,6.0,8.0,8],
+        [4.0,0.0,8.0,2.0],
+        [4.0,4.0,8.0,6.0],
+        [8,6.0,14.0,8],
+        [8.0,3.0,14.0,4.0],
+        [14.0,3.0,20,8.0],
+        [17.0,2.0,20,3.0],
+        [8.0,0,20.0,2.0],
+        [8.0,2.0,17.0,3.0],
+        [11.0,14.0,20.0,17.0],
+        [8.0,8,20.0,14.0],
+        [11.0,17.0,15.5,20],
+        [15.5,17.0,18.5,20],
+        [18.5,17.0,20,20]
+    ]
 
     adjacency_list = generate_adjacency_list(regions)
     print(adjacency_list)
+    adjacency_graph = generate_adjacency_graph(regions)
+    start_region = 5
+    goal_region = 4
+    path = nx.shortest_path(adjacency_graph, source=start_region, target=goal_region)
+    
+    print('Shortest path:', path)

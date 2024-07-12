@@ -58,8 +58,9 @@ if __name__ == "__main__":
     parser.add_argument("--boss_eps_min", default=0.01, type=int)
     parser.add_argument("--boss_eps_decay", default=0.99995, type=float)
     parser.add_argument("--boss_eps_linear_decay", default=1e-6, type=float)
-      
-
+    parser.add_argument("--boss_continuous", default=False, type=bool)
+    parser.add_argument("--boss_update", default=True, type=bool)
+    
     # Manager Parameters
     parser.add_argument("--man_soft_sync_rate", default=0.005, type=float)
     parser.add_argument("--man_batch_size", default=128, type=int)
@@ -68,7 +69,8 @@ if __name__ == "__main__":
     parser.add_argument("--man_act_lr", default=1e-4, type=float)
     parser.add_argument("--man_crit_lr", default=1e-3, type=float)
     parser.add_argument("--candidate_goals", default=10, type=int)
-
+    parser.add_argument("--man_continuous", default=False, type=bool)
+    
     # Controller Parameters
     parser.add_argument("--ctrl_soft_sync_rate", default=0.005, type=float)
     parser.add_argument("--ctrl_batch_size", default=128, type=int)
@@ -76,7 +78,8 @@ if __name__ == "__main__":
     parser.add_argument("--ctrl_rew_scale", default=1.0, type=float)
     parser.add_argument("--ctrl_act_lr", default=1e-4, type=float)
     parser.add_argument("--ctrl_crit_lr", default=1e-3, type=float)
-
+    parser.add_argument("--ctrl_continuous", default=False, type=bool)
+    
     # Noise Parameters
     parser.add_argument("--noise_type", default="normal", type=str)
     parser.add_argument("--ctrl_noise_sigma", default=1., type=float)
@@ -94,7 +97,8 @@ if __name__ == "__main__":
 
     # Run the algorithm
     args = parser.parse_args()
-
+    args.boss_update = False # This line needs to be removed
+    
     if args.env_name in ["AntGather", "AntMazeSparse"]:
         args.man_rew_scale = 1.0
         if args.env_name == "AntGather":

@@ -5,14 +5,34 @@ from gym import spaces
 import copy
 import envs.create_maze_env
 
-
+def create_random_point():
+    # 定义各个合法区域及其面积
+    areas = [
+        ((0, 0, 20, 8), 160),               # 左下角矩形
+        ((16, 8, 20, 20), 48),         # 右边竖直长条
+        ((0, 16, 16, 20), 64)        # 上边横条
+    ]
+    
+    # 计算总面积
+    total_area = 272
+    
+    # 根据面积随机选择一个区域
+    r = np.random.uniform(0, total_area)
+    cumulative_area = 0
+    for ((x1, y1, x2, y2), area) in areas:
+        cumulative_area += area
+        if r < cumulative_area:
+            # 在选择的区域内生成点
+            return np.random.uniform((x1, y1), (x2, y2))
+        
 def get_goal_sample_fn(env_name, evaluate):
     if env_name in ["AntMaze", "PointMaze", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms"]:
         if evaluate:
             return lambda: np.array([0., 16.])
         else:
             # return lambda: np.random.uniform((-4, -4), (20, 20))
-            return lambda: np.random.uniform((0, 0), (20, 20))
+            # return lambda: np.random.uniform((0, 0), (20, 20))
+            return lambda: create_random_point()
     elif env_name == 'AntMazeSparse' or env_name == 'PointMazeSparse':
         return lambda: np.array([2., 9.])
     elif env_name == 'AntPush':

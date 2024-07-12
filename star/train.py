@@ -315,6 +315,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
                     start_partition_idx = boss_policy.identify_partition(state)
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    logging.info("Identifying partition: Step {}".format(step_count))
                     try:
                         target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
                     except Exception as e:
@@ -330,6 +331,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
 
                 if step_count % manager_propose_frequency == 0:
                     subgoal = manager_policy.sample_goal(state, target_partition)
+                    logging.info("Proposing subgoal: Step{}".format(step_count))
                     x = max(min(int((subgoal[0] - g_low[0]) / (g_high[0] - g_low[0]) * resolution),resolution),0)
                     y = max(min(int((subgoal[1] - g_low[1]) / (g_high[1] - g_low[1]) * resolution),resolution),0)
                     grid[y, x] += 1
@@ -1356,8 +1358,9 @@ def run_star(args):
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
         mode=mode)
-    boss_policy.load("./models", args.env_name, args.algo)
-    print("Boss policy loaded")
+    if args.boss_continuous:
+        boss_policy.load("./models", args.env_name, args.algo)
+        print("Boss policy loaded")
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1371,8 +1374,9 @@ def run_star(args):
         policy_noise=policy_noise,
         noise_clip=noise_clip
     )
-    # controller_policy.load("./models", args.env_name, args.algo)
-    # print("Controller policy loaded")
+    if args.ctrl_continuous:
+        controller_policy.load("./models", args.env_name, args.algo)
+        print("Controller policy loaded")
     
     manager_policy = agents.Manager(
         state_dim=state_dim,
@@ -1387,8 +1391,9 @@ def run_star(args):
         absolute_goal=args.absolute_goal,
         partitions=True
     )
-    # manager_policy.load("./models", args.env_name, args.algo)
-    # print("Manager policy loaded")
+    if args.man_continuous:
+        manager_policy.load("./models", args.env_name, args.algo)
+        print("Manager policy loaded")
     
     if state_dims:
         calculate_controller_reward = get_reward_function(
@@ -1578,7 +1583,8 @@ def run_star(args):
                     manager_buffer.add(manager_transition)
 
             if total_timesteps > 0:
-                boss_policy.policy_update(start_partition_idx, target_partition_idx, reached_partition_idx, boss_reward, done, goal, args.boss_discount_factor, args.boss_alpha)
+                if args.boss_update:
+                    boss_policy.policy_update(start_partition_idx, target_partition_idx, reached_partition_idx, boss_reward, done, goal, args.boss_discount_factor, args.boss_alpha)
             
             obs = env.reset()
             goal = obs["desired_goal"]
@@ -1693,7 +1699,8 @@ def run_star(args):
         timesteps_since_map += 1
 
         if timesteps_since_partition % args.boss_propose_freq == 0:
-            boss_policy.policy_update(start_partition_idx, target_partition_idx, reached_partition_idx, boss_reward, done, goal, args.boss_discount_factor, args.boss_alpha)
+            if args.boss_update:
+                boss_policy.policy_update(start_partition_idx, target_partition_idx, reached_partition_idx, boss_reward, done, goal, args.boss_discount_factor, args.boss_alpha)
             prev_start_partition_idx = start_partition_idx
             prev_start_partition = start_partition
             prev_target_partition_idx = target_partition_idx  
