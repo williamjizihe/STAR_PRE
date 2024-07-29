@@ -1,11 +1,14 @@
 from typing import List, Optional
 from myllama import Llama
 import copy
+from transformers import GPT2Tokenizer
+import tiktoken
+import re
 
 class ChatGenerator:
     def __init__(self, 
-                 ckpt_dir: str = "Meta-Llama-3-8B-Instruct/", 
-                 tokenizer_path: str = "Meta-Llama-3-8B-Instruct/tokenizer.model", 
+                 ckpt_dir: str = "Meta-Llama-3.1-8B-Instruct/", 
+                 tokenizer_path: str = "Meta-Llama-3.1-8B-Instruct/tokenizer.model", 
                  max_seq_len: int = 4196, 
                  max_batch_size: int = 2, 
                  temperature: float = 0.6, 
@@ -29,6 +32,9 @@ class ChatGenerator:
         self.shot_tokens = None
         self.head_tokens = None
         self.count = 0
+        self.tokens_num = 0
+        self.GPTtokenizer = tiktoken.get_encoding("cl100k_base")
+        self.chat_strip_match = re.compile(r'<\|.*?\|>')
         
         # Initialize the generator model
         self.generator = Llama.build(
@@ -57,7 +63,9 @@ class ChatGenerator:
         tokens = copy.deepcopy(self.shot_tokens)
         tokens.extend(self.generator.formatter.encode_message({"role": "user", "content": prompt}))
         tokens.extend(self.head_tokens)
-        
+        # print("Length of tokens: ", len(tokens))
+        # print("Length of GPT tokens: ", self.GPT_tokens_num + len(self.GPTtokenizer.encode(prompt)))
+              
         generation_tokens = self.generator.generate(
             prompt_tokens=[tokens],
             max_gen_len=self.max_gen_len,
@@ -68,10 +76,19 @@ class ChatGenerator:
         return self.generator.tokenizer.decode(generation_tokens[0])
 
     def save_shot(self, shot):
+        GPT_shot_tokens_num = 0
         tokens = []
         tokens.append(self.generator.formatter.tokenizer.special_tokens["<|begin_of_text|>"])
         tokens.extend(self.generator.formatter.encode_message({"role": "system", "content": self.system_prompt}))
+        GPT_shot_tokens_num += self.count_GPT_tokens(self.system_prompt)
+        
         for message in shot:
             tokens.extend(self.generator.formatter.encode_message(message))
+            GPT_shot_tokens_num += self.count_GPT_tokens(message["content"])
         self.shot_tokens = tokens
-        return
+        return GPT_shot_tokens_num
+
+    def count_GPT_tokens(self, text):
+        text = self.chat_strip_match.sub('', text)
+        encoded_text = self.GPTtokenizer.encode(text)
+        return len(encoded_text)
