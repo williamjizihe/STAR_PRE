@@ -167,12 +167,14 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
                     start_partition = np.array(boss_policy.G[start_partition_idx].inf + boss_policy.G[start_partition_idx].sup)
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
-                    try:
-                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging)
-                    except Exception as e:
-                        logging.error("Error in evaluation: {}".format(e))
-                        target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
-                        
+                    # try:
+                    #     target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging)
+                    # except Exception as e:
+                    #     logging.error("Error in evaluation: {}".format(e))
+                    #     target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    
+                    target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    
                     if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                         target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
                     elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:
@@ -1357,10 +1359,13 @@ def run_star(args):
         reachability_algorithm=args.reach_algo,
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
-        mode=mode)
+        mode=mode,
+        using_LLM=args.llm)
     if args.boss_continuous:
         boss_policy.load("./models", args.env_name, args.algo)
         print("Boss policy loaded")
+    if args.llm:
+        logging.info(f"GPT shot tokens: {boss_policy.shot_GPT_tokens}")
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1512,7 +1517,8 @@ def run_star(args):
                     
                             if len(fwd_errors[(goal_pair[0], goal_pair[1])]) > 1 and fwd_errors[(goal_pair[0], goal_pair[1])][-1] - fwd_errors[(goal_pair[0], goal_pair[1])][-2] < 0.001:
                                 start = time.time()
-                                boss_policy.train(fwd_model, goal, [goal_pair], args.boss_buffer_min_size, batch_size=args.boss_batch_size, replay_buffer=boss_buffer, tau1=args.tau1, tau2=args.tau2)
+                                if args.boss_update:
+                                    boss_policy.train(fwd_model, goal, [goal_pair], args.boss_buffer_min_size, batch_size=args.boss_batch_size, replay_buffer=boss_buffer, tau1=args.tau1, tau2=args.tau2)
                                 end = time.time()
                                 end_algo = end
                                 duration += end - start
@@ -1608,11 +1614,10 @@ def run_star(args):
             
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # Here we ask LLM to propose a target partition
-            try:
+            if args.llm:
                 boss_policy.last_partition_idx = None
                 target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
-            except Exception as e:
-                logging.error(e)
+            else:
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # logging.info(f"STAR: {target_partition_idx+1}")
             ###
@@ -1714,10 +1719,9 @@ def run_star(args):
             
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
             # Here we ask LLM to propose a target partition
-            try:
+            if args.llm:
                 target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
-            except Exception as e:
-                logging.error(e)
+            else:
                 target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                 
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:

@@ -95,9 +95,12 @@ if __name__ == "__main__":
     # Test Parameters
     parser.add_argument("--test", default=False, type=bool)
 
+    # LLM
+    parser.add_argument("--llm", default=False, type=bool)
+    
     # Run the algorithm
     args = parser.parse_args()
-    args.boss_update = False # This line needs to be removed
+    # args.boss_update = False # This line needs to be removed
     
     if args.env_name in ["AntGather", "AntMazeSparse"]:
         args.man_rew_scale = 1.0

@@ -111,7 +111,7 @@ def boltzmann_policy(Q, temperature, nA, epsilon, goal=None):
 
 class Boss(object):
 
-    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, instruction='', goal_cond=True, mem_capacity=1e5, mode='deterministic'):
+    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, instruction='', goal_cond=True, mem_capacity=1e5, mode='deterministic', using_LLM=False):
         self.G = G_init
         self.reachability_algorithm = reachability_algorithm
         self.state_dim = state_dim
@@ -121,6 +121,7 @@ class Boss(object):
         self.instruction = instruction
         self.partition_steps = defaultdict(lambda: 0)
         self.automaton = nx.DiGraph()
+        self.select_partition_count = 0
         
         for i in range(len(self.G)):
             self.automaton.add_node(i)
@@ -139,23 +140,24 @@ class Boss(object):
         self.splits = []
         self.mode = mode
         # Llama3
-        self.system_prompt = ("As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.\n"
-        "Thinking Process:\n"
-        "1. Identify the agent's current region, identify the goal region\n"
-        "2. Identify where is the wall.\n"
-        "3. Examine the adjacency list to see which regions connect to the current region.\n"
-        "4. Observe the maze to see which other regions are also connected to the current region.\n"
-        "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
-)
-        self.chat = ChatGenerator(max_seq_len=4096, max_gen_len=1024, system_prompt=self.system_prompt)
-        with open('./shot.yaml', 'r') as f:
-            self.shot = yaml.load(f, Loader=yaml.FullLoader)
-        f.close()
-        self.shot_txt = "\n\n".join(f"{item['role']}: {item['content']}" for item in self.shot)
-        self.chat.save_shot(self.shot)
-        self.chat_history = {}
-        self.last_partition_idx = None
-        self.last_state_region = None
+        if using_LLM:
+            self.system_prompt = ("As a navigation assistant, help the agent find the best route through the maze to their goal by analyzing the given data. Consider each region's position and connections.\n"
+            "Thinking Process:\n"
+            "1. Identify the agent's current region, identify the goal region\n"
+            "2. Identify where is the wall.\n"
+            "3. Examine the adjacency list to see which regions connect to the current region.\n"
+            "4. Observe the maze to see which other regions are also connected to the current region.\n"
+            "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
+            )
+            self.chat = ChatGenerator(max_seq_len=4096, max_gen_len=1024, system_prompt=self.system_prompt)
+            with open('./shot.yaml', 'r') as f:
+                self.shot = yaml.load(f, Loader=yaml.FullLoader)
+            f.close()
+            self.shot_txt = "\n\n".join(f"{item['role']}: {item['content']}" for item in self.shot)
+            self.shot_GPT_tokens = self.chat.save_shot(self.shot)
+            self.chat_history = {}
+            self.last_partition_idx = None
+            self.last_state_region = None
         
     def identify_goal(self, goal):
         i = -1
@@ -279,7 +281,7 @@ class Boss(object):
 
     def split(self, forward_model, start_partition, target_partition, replay_buffer=[], tau1=0.8, tau2=0.2):
         """Split the partition into two partitions according to reachability analysis"""
-        return # We don't update the partitions
+        # return # We don't update the partitions
         model = forward_model
 
         input_lower = self.G[start_partition].inf + self.G[target_partition].inf + self.G[target_partition].sup
@@ -461,6 +463,7 @@ class Boss(object):
         return adjacency_dict
     
     def select_partition_chat(self, state, start_partition_idx, goal, logging):
+        self.select_partition_count += 1
         return self.select_partition_chat_LLAMA3(state, start_partition_idx, goal, logging)
     
     def select_partition_chat_LLAMA3(self, state, start_partition_idx, goal, logging=None):
@@ -494,14 +497,17 @@ class Boss(object):
                                     adjacency_list=adjacency_dict,
                                     maze=maze,
                                     instruction=self.instruction)
+        
+        GPT_input_tokens_num = self.chat.count_GPT_tokens(prompt)
         time1 = time.time()
         response = self.chat(prompt)
         time2 = time.time()
+        GPT_tokens_num = self.chat.count_GPT_tokens(response)
         last_line = response.strip().split("\n")[-1]
         match = re.search(r"Region (\d+)", last_line)
         
         if logging:
-            logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}\nTime: {time2-time1}")
+            logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}\nTime: {time2-time1}\nSelect Partition Count: {self.select_partition_count}\nTimes: {self.chat.count}\nGPT input tokens: {GPT_input_tokens_num}\nGPT output tokens: {GPT_tokens_num}")
         if match:
             answer = int(match.group(1))
         else:

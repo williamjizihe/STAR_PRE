@@ -554,6 +554,66 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
     # prompt += ("\nProvide the answer in the following exact format without any additional explanation or text: Region <i>\n")
     return prompt
 
+def generate_antfall_maze_representation(regions, position):
+    # Define the fixed size of the maze
+    # x: -8 to 16, y: 0 to 32
+    goal = (0, 54, 9)
+    size = (49, 65, 11)
+    offset = (16, 0, 0)  # offset to make all coordinates positive
+    
+    # Initialize the maze representation with zeros
+    maze = np.zeros(size, dtype=int)
+    
+    # Mark regions with their respective indices
+    for i, r in enumerate(regions):
+        x1, y1, z1, x2, y2, z2 = int(r[0]*2)+offset[0], int(r[1]*2)+offset[1], int(r[2]*2)+offset[2], \
+                                 int(r[3]*2)+offset[0], int(r[4]*2)+offset[1], int(r[5]*2)+offset[2]
+        maze[x1:x2+1, y1:y2+1, z1:z2+1] = i + 1
+
+    # maze[goal[0]+offset[0], goal[1]+offset[1], goal[2]+offset[2]] = 99
+    # maze[int(position[0]*2)+offset[0], int(position[1]*2)+offset[1], int(position[2]*2)+offset[2]] = 98
+    
+    # Pit boundaries
+    # Pit = ((-16, 32), (24, 48), (0, 10))
+    maze[-16+offset[0]:32+offset[0]+1, \
+         24+offset[1]:48+offset[1]+1, \
+         0+offset[2]:10+offset[2]+1] = -1
+    
+    # Bridge
+    # Bridge = (8, 8, (0, 10))
+    maze[8+offset[0], 8+offset[1], 0+offset[2]:10+offset[2]+1] = 97
+    
+    # Compress the maze
+    # Column
+    col_mask = np.append([True], (np.diff(maze, axis=2) != 0).any(axis=(0, 1)))
+    maze = maze[:, :, col_mask]
+    
+    # Depth
+    depth_mask = np.append([True], (np.diff(maze, axis=0) != 0).any(axis=(1, 2)))
+    maze = maze[depth_mask]
+
+    # Row
+    row_mask = np.append([True], (np.diff(maze, axis=1) != 0).any(axis=(0, 2)))
+    maze = maze[:, row_mask]
+
+    
+    # Rotate the maze representation by 90 degrees
+    maze = np.rot90(maze)
+    
+    # Generate the maze string using numpy vectorization
+    char_maze = np.full(maze.shape, ' ', dtype='<U2')
+    char_maze[maze == -1] = 'P'
+    char_maze[maze == 98] = 'A'
+    char_maze[maze == 99] = 'G'
+    char_maze[maze == 97] = 'B'
+    char_maze[(maze >= 0) & (maze < 97)] = maze[(maze >= 0) & (maze < 97)].astype(str)
+    
+    char_maze_list = []
+    for i in range(char_maze.shape[2]):
+        char_maze_list.append('\n'.join(' '.join(row) for row in char_maze[:, :, i]))
+    # Join all characters and form the final string
+    return char_maze_list
+
 def generate_maze_representation(regions, goal, position):
     # Define the fixed size of the maze
     size = 49  # from -4 to 20, scaled by 2
@@ -678,38 +738,65 @@ def generate_adjacency_graph(regions):
     return G
 
 if __name__ == '__main__':
+    # AntFall
+    regions =[[2.5,8.0,0,4,16.0,5],
+              [10.0,4.0,0,13.0,8.0,5],
+              [-8,16,0,4,32,5],
+              [4,16,0,16,32,5],
+              [1.0,4.0,0,4,6.0,5],
+              [1.0,6.0,0,4,8.0,5],
+              [-8,0.0,0,-2.0,16.0,5],
+              [1.0,0.0,0,4,4.0,5],
+              [-2.0,8.0,0,2.5,12.0,5],
+              [-2.0,12.0,0,2.5,16,5],
+              [-2.0,0.0,0,1.0,8.0,5],
+              [10.0,12.0,0,13.0,16,5],
+              [4.0,0,0,16.0,4.0,5],
+              [13.0,4.0,0,16,8.0,5],
+              [13.0,12.0,0,16,16,5],
+              [4.0,4.0,0,10.0,8.0,5],
+              [4.0,8.0,0,16.0,12.0,5],
+              [4.0,12.0,0,10.0,16,5]]
+    regions = [[-8,0,0,4,16,5],
+               [4,0,0,16,16,5],
+               [-8,16,0,4,32,5],
+               [4,16,0,16,32,5]]
+    char_maze_list = generate_antfall_maze_representation(regions, (0,0,4.5))
+    with open('antfall_maze.txt', 'w') as f:
+        f.write('\n\n'.join(char_maze_list))
+    f.close()
     # 示例矩形列表
-    regions = [
-        [6.0,2.0,8,4.0],
-        [8,4.0,14.0,6.0],
-        [8,14.0,11.0,20],
-        [0,8,8,20],
-        [0,0.0,4.0,4.0],
-        [4.0,2.0,6.0,3.0],
-        [4.0,3.0,6.0,4.0],
-        [2.0,4.0,4.0,6.0],
-        [0,4.0,2.0,6.0],
-        [0.0,6.0,8.0,8],
-        [4.0,0.0,8.0,2.0],
-        [4.0,4.0,8.0,6.0],
-        [8,6.0,14.0,8],
-        [8.0,3.0,14.0,4.0],
-        [14.0,3.0,20,8.0],
-        [17.0,2.0,20,3.0],
-        [8.0,0,20.0,2.0],
-        [8.0,2.0,17.0,3.0],
-        [11.0,14.0,20.0,17.0],
-        [8.0,8,20.0,14.0],
-        [11.0,17.0,15.5,20],
-        [15.5,17.0,18.5,20],
-        [18.5,17.0,20,20]
-    ]
+    # regions = [
+    #     [6.0,2.0,8,4.0],
+    #     [8,4.0,14.0,6.0],
+    #     [8,14.0,11.0,20],
+    #     [0,8,8,20],
+    #     [0,0.0,4.0,4.0],
+    #     [4.0,2.0,6.0,3.0],
+    #     [4.0,3.0,6.0,4.0],
+    #     [2.0,4.0,4.0,6.0],
+    #     [0,4.0,2.0,6.0],
+    #     [0.0,6.0,8.0,8],
+    #     [4.0,0.0,8.0,2.0],
+    #     [4.0,4.0,8.0,6.0],
+    #     [8,6.0,14.0,8],
+    #     [8.0,3.0,14.0,4.0],
+    #     [14.0,3.0,20,8.0],
+    #     [17.0,2.0,20,3.0],
+    #     [8.0,0,20.0,2.0],
+    #     [8.0,2.0,17.0,3.0],
+    #     [11.0,14.0,20.0,17.0],
+    #     [8.0,8,20.0,14.0],
+    #     [11.0,17.0,15.5,20],
+    #     [15.5,17.0,18.5,20],
+    #     [18.5,17.0,20,20]
+    # ]
 
-    adjacency_list = generate_adjacency_list(regions)
-    print(adjacency_list)
-    adjacency_graph = generate_adjacency_graph(regions)
-    start_region = 5
-    goal_region = 4
-    path = nx.shortest_path(adjacency_graph, source=start_region, target=goal_region)
+    # adjacency_list = generate_adjacency_list(regions)
+    # print(adjacency_list)
+    # adjacency_graph = generate_adjacency_graph(regions)
+    # start_region = 5
+    # goal_region = 4
+    # path = nx.shortest_path(adjacency_graph, source=start_region, target=goal_region)
     
-    print('Shortest path:', path)
+    # print('Shortest path:', path)
