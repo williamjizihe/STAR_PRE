@@ -9,6 +9,8 @@ import os
 import json
 import copy
 from collections import defaultdict
+from collections import deque
+from itertools import islice
 
 from star.models import ControllerActor, ControllerCritic, \
     ManagerActor, ManagerCritic, ForwardModel
@@ -24,8 +26,10 @@ from convert import convert
 import csv
 import yaml
 from star.chat import ChatGenerator
+from star.gptchat import ChatGenerator as GPTChatGenerator
 import re
 import time
+import logging
 
 """
 HIRO part adapted from
@@ -35,7 +39,16 @@ https://github.com/bhairavmehta95/data-efficient-hrl/blob/master/hiro/hiro.py
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class METHOD:
+    '''
+    enum class for method: star or llm
+    '''
+    STAR = 0
+    LLM = 1
 
+    def __str__(self):
+        return "STAR" if self == METHOD.STAR else "LLM"
+    
 def var(tensor):
     return tensor.to(device)
 
@@ -111,7 +124,7 @@ def boltzmann_policy(Q, temperature, nA, epsilon, goal=None):
 
 class Boss(object):
 
-    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, instruction='', goal_cond=True, mem_capacity=1e5, mode='deterministic', using_LLM=False):
+    def __init__(self, state_dim, goal_dim, G_init, policy, reachability_algorithm, instruction='', goal_cond=True, mem_capacity=1e5, mode='deterministic', using_LLM=False, using_GPT=False):
         self.G = G_init
         self.reachability_algorithm = reachability_algorithm
         self.state_dim = state_dim
@@ -122,6 +135,14 @@ class Boss(object):
         self.partition_steps = defaultdict(lambda: 0)
         self.automaton = nx.DiGraph()
         self.select_partition_count = 0
+        self.using_LLM = using_LLM
+        self.using_GPT = using_GPT
+        self.chat = None
+        self.last_chosen_method = None
+        self.chosen_method_count = 0
+        self.reward_window_size = 5
+        self.reward_llm = deque(maxlen=2*self.reward_window_size)
+        self.reward_star = deque(maxlen=2*self.reward_window_size)
         
         for i in range(len(self.G)):
             self.automaton.add_node(i)
@@ -149,16 +170,21 @@ class Boss(object):
             "4. Observe the maze to see which other regions are also connected to the current region.\n"
             "5. From these connected regions, choose the one that moves closest to the goal without hitting walls.\n"
             )
-            self.chat = ChatGenerator(max_seq_len=4096, max_gen_len=1024, system_prompt=self.system_prompt)
             with open('./shot.yaml', 'r') as f:
                 self.shot = yaml.load(f, Loader=yaml.FullLoader)
             f.close()
-            self.shot_txt = "\n\n".join(f"{item['role']}: {item['content']}" for item in self.shot)
-            self.shot_GPT_tokens = self.chat.save_shot(self.shot)
             self.chat_history = {}
             self.last_partition_idx = None
             self.last_state_region = None
-        
+            
+            if not using_GPT:
+                self.chat = ChatGenerator(max_seq_len=4096, max_gen_len=1024, system_prompt=self.system_prompt)
+                self.shot_txt = "\n\n".join(f"{item['role']}: {item['content']}" for item in self.shot)
+                self.shot_GPT_tokens = self.chat.save_shot(self.shot)
+            elif using_GPT:
+                self.chat = GPTChatGenerator(model="gpt-4o", max_gen_len=1024, system_prompt=self.system_prompt)
+                self.shot_GPT_tokens = self.chat.save_shot(self.shot)
+                
     def identify_goal(self, goal):
         i = -1
         for i in range(len(self.G)):
@@ -187,6 +213,7 @@ class Boss(object):
 
 
     def select_partition(self, start_partition, epsilon, goal=None):
+        self.select_partition_count += 1
         if goal is not None:
             goal = self.identify_goal(goal)
         else:
@@ -205,14 +232,63 @@ class Boss(object):
         self.partition_steps[start_partition, partition] += 1
         return partition
 
+    def _get_progress(self, method):
+        if method == METHOD.STAR:
+            last_window_sum = sum(islice(self.reward_star, self.reward_window_size, self.reward_window_size*2))
+            first_window_sum = sum(islice(self.reward_star, self.reward_window_size))
+            return last_window_sum - first_window_sum
+        elif method == METHOD.LLM:
+            last_window_sum = sum(islice(self.reward_llm, self.reward_window_size, self.reward_window_size*2))
+            first_window_sum = sum(islice(self.reward_llm, self.reward_window_size))
+            return last_window_sum - first_window_sum
+        
+    def select_partition_method(self, total_timesteps, state, start_partition_idx, epsilon, goal, evaluation=False):
+        '''
+        We choose the method to select the partition based on the progress of the reward
+        '''
+        if evaluation:
+            logging.info("Evaluation Mode")
+        else:
+            self.select_partition_count += 1
+            
+        if self.select_partition_count < 50000:
+            # We use LLM and STAR randomly at the beginning
+            chosen_method = np.random.choice([METHOD.STAR, METHOD.LLM])
+            logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {self.select_partition_count}\nRandomly Chosen Method: {chosen_method}")
+        else:
+            progress_star = self._get_progress(METHOD.STAR)
+            progress_llm = self._get_progress(METHOD.LLM)
+            chosen_method = METHOD.STAR if progress_star > progress_llm else METHOD.LLM
+            if self.chosen_method_count > 2 * self.reward_window_size and self.last_chosen_method == chosen_method:
+                logging.info("Keep using the same method {chosen_method} for {self.chosen_method_count} times. Try to switch to the other method.")
+                chosen_method = METHOD.STAR if abs(progress_star) > abs(progress_llm) else METHOD.LLM
+                
+            logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {self.select_partition_count}\nChosen Method: {chosen_method}\nProgress STAR: {progress_star}, Progress LLM: {progress_llm}")
+        
+        if not evaluation:
+            if self.last_chosen_method == chosen_method:
+                self.chosen_method_count += 1
+            else:
+                self.chosen_method_count = 1
+            self.last_chosen_method = chosen_method
+            
+        if chosen_method == METHOD.STAR:
+            return self.select_partition(start_partition_idx, epsilon, goal)
+        else:
+            return self.select_partition_chat(total_timesteps, state, start_partition_idx, goal)
+            
     def policy_update(self, start_partition, target_partition, reached_partition, reward, done, goal= None, discount=0.99, alpha=0.5):
+        if self.last_chosen_method == METHOD.STAR:
+            self.reward_star.append(reward)
+        elif self.last_chosen_method == METHOD.LLM:
+            self.reward_llm.append(reward)
+            
         if goal is not None:
             goal = self.identify_goal(goal)
         if self.policy == 'Q-learning':
             self.Q_learning_update(start_partition, target_partition, reached_partition, reward, done, discount, alpha, goal)
         elif self.policy == 'Planning':
             self.planning_update(start_partition, target_partition, reached_partition, reward, done)
-
 
     def Q_learning_policy(self, start_partition, goal, epsilon=1, candidates = []):
         """Epsilon-greedy policy for Q-learning"""
@@ -462,11 +538,13 @@ class Boss(object):
             adjacency_dict[node] = list(self.automaton.successors(node))
         return adjacency_dict
     
-    def select_partition_chat(self, state, start_partition_idx, goal, logging):
-        self.select_partition_count += 1
-        return self.select_partition_chat_LLAMA3(state, start_partition_idx, goal, logging)
+    def select_partition_chat(self, total_timesteps, state, start_partition_idx, goal):
+        # if self.using_LLM and not self.using_GPT:
+        return self.select_partition_chat_LLAMA3(state, start_partition_idx, goal)
+        # elif self.using_LLM and self.using_GPT:
+        #     return self.select_partition_chat_api(state, start_partition_idx, goal)
     
-    def select_partition_chat_LLAMA3(self, state, start_partition_idx, goal, logging=None):
+    def select_partition_chat_LLAMA3(self, state, start_partition_idx, goal):
         if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
             return self.last_partition_idx - 1
         
@@ -483,12 +561,11 @@ class Boss(object):
         adjacency_dict = generate_adjacency_list(regions)
         # adjacency_dict = {i+1:[] for i in range(len(regions))}
         tup_regions = tuple([tuple(region) for region in regions])
-        chat_input = (state, goal, start_partition_idx, goal_partition_idx, tup_regions)
+        chat_input = (start_partition_idx, goal_partition_idx, tup_regions)
 
         if chat_input in self.chat_history:
             self.last_partition_idx = self.chat_history[chat_input]
-            if logging:
-                logging.info(f"Chat: Exist Answer: {self.last_partition_idx}\nState: {state}\nGoal: {goal}\nStart: {start_partition_idx}\nGoal: {goal_partition_idx}")
+            logging.info(f"Chat: Exist Answer: {self.last_partition_idx}\nState: {state}\nGoal: {goal}\nStart: {start_partition_idx}\nGoal: {goal_partition_idx}")
             self.last_state_region = start_partition_idx
             return self.last_partition_idx - 1
         
@@ -520,18 +597,69 @@ class Boss(object):
         self.last_state_region = start_partition_idx
         return answer - 1
     
+    def select_partition_chat_api(self, state, start_partition_idx, goal):
+        if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
+            return self.last_partition_idx - 1
+        
+        goal_partition_idx = self.identify_goal(goal)
+        if start_partition_idx == goal_partition_idx:
+            return start_partition_idx
+        
+        # 转为最近的.5
+        state = tuple([round(n*2)/2 for n in state[:self.goal_dim]])
+        goal = tuple([round(n*2)/2 for n in goal[:self.goal_dim]])
+        
+        regions = [self.G[i].inf + self.G[i].sup for i in range(len(self.G))]
+        # combine automaton and adjacency list
+        adjacency_dict = generate_adjacency_list(regions)
+        # adjacency_dict = {i+1:[] for i in range(len(regions))}
+        tup_regions = tuple([tuple(region) for region in regions])
+        chat_input = (start_partition_idx, goal_partition_idx, tup_regions)
+
+        if chat_input in self.chat_history:
+            self.last_partition_idx = self.chat_history[chat_input]
+            logging.info(f"Chat: Exist Answer: {self.last_partition_idx}\nState: {state}\nGoal: {goal}\nStart: {start_partition_idx}\nGoal: {goal_partition_idx}")
+            self.last_state_region = start_partition_idx
+            return self.last_partition_idx - 1
+        
+        maze = generate_maze_representation(regions, goal, state)
+        prompt = generate_user_prompt(state, start_partition_idx+1, goal, goal_partition_idx+1, 
+                                    adjacency_list=adjacency_dict,
+                                    maze=maze,
+                                    instruction=self.instruction)
+        
+        GPT_input_tokens_num = self.chat.count_GPT_tokens(prompt)
+        time1 = time.time()
+        response = self.chat(prompt)
+        time2 = time.time()
+        GPT_tokens_num = self.chat.count_GPT_tokens(response)
+        last_line = response.strip().split("\n")[-1]
+        match = re.search(r"Region (\d+)", last_line)
+        
+        logging.info(f"Chat: Prompt: {prompt}\nResponse: {response}\nTime: {time2-time1}\nSelect Partition Count: {self.select_partition_count}\nTimes: {self.chat.count}\nGPT input tokens: {GPT_input_tokens_num}\nGPT output tokens: {GPT_tokens_num}")
+        
+        if match:
+            answer = int(match.group(1))
+        else:
+            answer = goal_partition_idx + 1
+            logging.warning(f"Chat: Response not match format!")
+        self.chat_history[chat_input] = answer
+        logging.info(f"Chat {self.chat.count}: New Answer: {answer}")
+        self.last_partition_idx = answer
+        self.last_state_region = start_partition_idx
+        return answer - 1
+    
     def select_partition_chat_GPT4(self, state, start_partition_idx, goal, logging=None):
         '''
         We use GPT4 to select the partition
         '''
+        
+        goal_partition_idx = self.identify_goal(goal)
         if start_partition_idx == goal_partition_idx:
             return start_partition_idx
         
         if self.last_partition_idx is not None and self.last_state_region == start_partition_idx:
             return self.last_partition_idx - 1
-        
-        goal_partition_idx = self.identify_goal(goal)
-        
         
         # 转为最近的.5
         state = tuple([round(n*2)/2 for n in state[:self.goal_dim]])

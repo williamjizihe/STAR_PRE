@@ -167,13 +167,17 @@ def evaluate_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_pol
                     start_partition = np.array(boss_policy.G[start_partition_idx].inf + boss_policy.G[start_partition_idx].sup)
                     visits[start_partition_idx] += 1
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
-                    # try:
-                    #     target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging)
-                    # except Exception as e:
-                    #     logging.error("Error in evaluation: {}".format(e))
-                    #     target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
-                    
-                    target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+                    # if env_name == "AntFall":
+                    #     logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {boss_policy.select_partition_count}")
+                    #     moveable_block_position = env.get_block_position("moveable_%d_%d" % (2, 2))
+                    #     logging.info(f"moveable_block_position: {moveable_block_position}")
+                    # if boss_policy.using_LLM:
+                    #     moveable_block_position = env.get_block_position("moveable_%d_%d" % (2, 2))
+                    #     logging.info(f"moveable_block_position: {moveable_block_position}")
+                    #     target_partition_idx = boss_policy.select_partition_chat(total_timesteps, state, start_partition_idx, goal, logging)
+                    # else:
+                    target_partition_idx = boss_policy.select_partition_method(total_timesteps, state, start_partition_idx, epsilon=0, goal=goal, evaluation=True)
+                    logging.info(f"Selected Partition: {target_partition_idx}")
                     
                     if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                         target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
@@ -319,7 +323,7 @@ def test_policy_star(env, env_name, goal_dim, grid, boss_policy, manager_policy,
                     # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                     logging.info("Identifying partition: Step {}".format(step_count))
                     try:
-                        target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
+                        target_partition_idx = boss_policy.select_partition_chat(total_timesteps, state, start_partition_idx, goal, logging=logging)
                     except Exception as e:
                         target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
                         logging.error("Error in evaluation: {}".format(e))
@@ -491,7 +495,8 @@ def test_star(args):
         reachability_algorithm=args.reach_algo,
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
-        mode=mode)
+        mode=mode,
+        using_LLM=args.llm)
     boss_policy.load("./models", args.env_name, args.algo)
     print("Boss policy loaded")
     
@@ -1313,7 +1318,8 @@ def run_star(args):
         goal_dim = args.boss_region_dim
         goal_cond = False
 
-    g_low = [0, 0]
+    # g_low = [0, 0]
+    g_low = [-4, -4]
     g_high = [20, 20]
     
     if args.env_name in ["AntMaze", "AntMazeCam", "2RoomsCam", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms", "PointMaze"] and state_dims:
@@ -1323,11 +1329,16 @@ def run_star(args):
                 utils.ndInterval(goal_dim, inf=[0,8]+list(low[state_dims[2:]]), sup=[8,20]+list(high[state_dims[2:]]))
                 ]
     elif args.env_name in ["AntMaze", "AntMazeCam", "2RoomsCam", "AntMazeStochastic", "2Rooms", "3Rooms", "4Rooms", "PointMaze"] and not state_dims:
-        G_init = [utils.ndInterval(goal_dim, inf=[0,0], sup=[8,8]),
-                utils.ndInterval(goal_dim, inf=[8,0], sup=[20,8]),
-                utils.ndInterval(goal_dim, inf=[8,8], sup=[20,20]),
-                utils.ndInterval(goal_dim, inf=[0,8], sup=[8,20])
-                ]
+        # G_init = [utils.ndInterval(goal_dim, inf=[0,0], sup=[8,8]),
+        #         utils.ndInterval(goal_dim, inf=[8,0], sup=[20,8]),
+        #         utils.ndInterval(goal_dim, inf=[8,8], sup=[20,20]),
+        #         utils.ndInterval(goal_dim, inf=[0,8], sup=[8,20])
+        #         ]
+        G_init = [utils.ndInterval(goal_dim, inf=[-4,-4], sup=[8,8]),
+            utils.ndInterval(goal_dim, inf=[8,-4], sup=[20,8]),
+            utils.ndInterval(goal_dim, inf=[8,8], sup=[20,20]),
+            utils.ndInterval(goal_dim, inf=[-4,8], sup=[8,20])
+            ]
     elif args.env_name in ["AntPush"]:
         G_init = [utils.ndInterval(goal_dim, inf=[-8,0], sup=[20,8]),
                 utils.ndInterval(goal_dim, inf=[-8,0], sup=[20,8]),
@@ -1360,12 +1371,16 @@ def run_star(args):
         goal_cond=goal_cond,
         mem_capacity=args.boss_batch_size,
         mode=mode,
-        using_LLM=args.llm)
+        using_LLM=args.llm,
+        using_GPT = args.api)
+    
     if args.boss_continuous:
         boss_policy.load("./models", args.env_name, args.algo)
         print("Boss policy loaded")
     if args.llm:
         logging.info(f"GPT shot tokens: {boss_policy.shot_GPT_tokens}")
+    if args.api:
+        logging.info(f"Using GPT API")
     
     controller_policy = agents.Controller(
         state_dim=state_dim,
@@ -1614,11 +1629,17 @@ def run_star(args):
             
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
             # Here we ask LLM to propose a target partition
-            if args.llm:
-                boss_policy.last_partition_idx = None
-                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
-            else:
-                target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+            # if args.env_name == "AntFall":
+            #     logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {boss_policy.select_partition_count}")
+            #     moveable_block_position = env.get_block_position("moveable_%d_%d" % (2, 2))
+            #     logging.info(f"moveable_block_position: {moveable_block_position}")
+            # if args.llm:
+            #     boss_policy.last_partition_idx = None
+            #     target_partition_idx = boss_policy.select_partition_chat(total_timesteps, state, start_partition_idx, goal, logging=logging)
+            # else:
+            #     target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
+            target_partition_idx = boss_policy.select_partition_method(total_timesteps, state, start_partition_idx, epsilon, goal)
+            logging.info(f"Selected Partition: {target_partition_idx}")
             # logging.info(f"STAR: {target_partition_idx+1}")
             ###
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
@@ -1719,11 +1740,16 @@ def run_star(args):
             
             # target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal)
             # Here we ask LLM to propose a target partition
-            if args.llm:
-                target_partition_idx = boss_policy.select_partition_chat(state, start_partition_idx, goal, logging=logging)
-            else:
-                target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon=0, goal=goal)
-                
+            # if args.env_name == "AntFall":
+            #     logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {boss_policy.select_partition_count}")
+            #     moveable_block_position = env.get_block_position("moveable_%d_%d" % (2, 2))
+            #     logging.info(f"moveable_block_position: {moveable_block_position}")
+            # if args.llm:
+            #     target_partition_idx = boss_policy.select_partition_chat(total_timesteps,state, start_partition_idx, goal, logging=logging)
+            # else:
+            #     target_partition_idx = boss_policy.select_partition(start_partition_idx, epsilon, goal=goal)
+            target_partition_idx = boss_policy.select_partition_method(total_timesteps, state, start_partition_idx, epsilon, goal)
+            logging.info(f"Selected Partition: {target_partition_idx}")
             if target_partition_idx == goal_partition and goal_dim == goal.shape[0]:
                 target_partition_interval = utils.ndInterval(goal_dim, inf=[goal[i]-1 for i in range(goal_dim)], sup=[goal[i]+1 for i in range(goal_dim)])
             elif target_partition_idx == goal_partition and goal_dim != goal.shape[0]:

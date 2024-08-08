@@ -75,7 +75,9 @@ def parse_additional_info(log_file_path):
     return results
 
 # Example usage
-log_file_path = './logging/logging_AntMaze_star_LLAMA3_07-15-17-38.log'
+# log_file_path = './logging/logging_AntMaze_star_LLAMA3_07-15-17-38.log'
+# log_file_path = './logging/logging_AntMaze_star_LLAMA3_07-29-19-11.log'
+log_file_path = './logging/logging_AntMaze_star_LLAMA3_07-31-17-38.log'
 parsed_data = parse_additional_info(log_file_path)
 GPT_input_tokens = sum([data[3] for data in parsed_data])
 GPT_output_tokens = sum([data[4] for data in parsed_data])
@@ -85,8 +87,8 @@ llm_times = len(parsed_data)
 inprice = 5.00 / 1000 / 1000 ### gpt-4o
 outprice = 15.00 / 1000 / 1000
 
-# inprice = 0.150/1000/1000 ### gpt-4o-mini
-# outprice = 0.600/1000/1000
+inpricem = 0.150/1000/1000 ### gpt-4o-mini
+outpricem = 0.600/1000/1000
 
 # Print time in readable format
 print(f'Total time: {times // 3600}h {(times % 3600) // 60}m {times % 60}s')
@@ -96,4 +98,5 @@ print(f'Total GPT input tokens: {GPT_input_tokens}')
 print(f'Total GPT output tokens: {GPT_output_tokens}')
 print(f'Total input price: {GPT_input_tokens * inprice}')
 print(f'Total output price: {GPT_output_tokens * outprice}')
-print(f'Total price: {GPT_input_tokens * inprice + GPT_output_tokens * outprice}')
+print(f'GPT4o price: {GPT_input_tokens * inprice + GPT_output_tokens * outprice}')
+print(f'GPT4o mini price: {GPT_input_tokens * inpricem + GPT_output_tokens * outpricem}')

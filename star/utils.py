@@ -554,7 +554,7 @@ def generate_user_prompt(state, r1, goal, r2, coordination=None, adjacency_list=
     # prompt += ("\nProvide the answer in the following exact format without any additional explanation or text: Region <i>\n")
     return prompt
 
-def generate_antfall_maze_representation(regions, position):
+def generate_antfall_maze_representation(regions, position, has_bridge):
     # Define the fixed size of the maze
     # x: -8 to 16, y: 0 to 32
     goal = (0, 54, 9)
@@ -570,18 +570,23 @@ def generate_antfall_maze_representation(regions, position):
                                  int(r[3]*2)+offset[0], int(r[4]*2)+offset[1], int(r[5]*2)+offset[2]
         maze[x1:x2+1, y1:y2+1, z1:z2+1] = i + 1
 
-    # maze[goal[0]+offset[0], goal[1]+offset[1], goal[2]+offset[2]] = 99
-    # maze[int(position[0]*2)+offset[0], int(position[1]*2)+offset[1], int(position[2]*2)+offset[2]] = 98
+    maze[goal[0]+offset[0], goal[1]+offset[1], :] = 99
+    maze[int(position[0]*2)+offset[0], int(position[1]*2)+offset[1], :] = 98
     
     # Pit boundaries
-    # Pit = ((-16, 32), (24, 48), (0, 10))
-    maze[-16+offset[0]:32+offset[0]+1, \
-         24+offset[1]:48+offset[1]+1, \
-         0+offset[2]:10+offset[2]+1] = -1
+    # Pit = ((-8, 16), (12, 24), (0, 10))
+    if not has_bridge:
+        maze[-16+offset[0]:32+offset[0]+1, \
+            24+offset[1]:48+offset[1]+1, \
+            0+offset[2]:10+offset[2]+1] = -1
     
-    # Bridge
-    # Bridge = (8, 8, (0, 10))
-    maze[8+offset[0], 8+offset[1], 0+offset[2]:10+offset[2]+1] = 97
+        # Bridge
+        # Bridge = (8, 8, (0, 10))
+        maze[16+offset[0]:, 16+offset[1], 0+offset[2]:10+offset[2]+1] = 97
+    else:
+        maze[-16+offset[0]:16+offset[0]+1, \
+            24+offset[1]:48+offset[1]+1, \
+            0+offset[2]:10+offset[2]+1] = -1
     
     # Compress the maze
     # Column
@@ -699,6 +704,44 @@ def are_adjacent(region1, region2):
 
     return False
 
+def are_adjacent_antfall(region1, region2, has_bridge):
+    if not has_bridge:
+        wx_low, wx_high, wy_low, wy_high = -8, 16, 12, 24
+    else:
+        wx_low, wx_high, wy_low, wy_high = -8, 8, 12, 24
+
+    # 分别提取两个矩形的坐标
+    x1_low, x1_high, y1_low, y1_high = region1[0], region1[2], region1[1], region1[3]
+    x2_low, x2_high, y2_low, y2_high = region2[0], region2[2], region2[1], region2[3]
+ 
+    # 检查x方向上的相邻情况
+    if (x1_high == x2_low or x1_low == x2_high) and ((y1_low <= y2_high and y1_high >= y2_high) or (y1_low <= y2_low and y1_high >= y2_low)):
+        x_edge = x1_high if x1_high == x2_low else x1_low
+        y_edge_low, y_edge_high = max(y1_low, y2_low), min(y1_high, y2_high)
+        # print('x_edge:', x_edge)
+        # print('y_edge_low:', y_edge_low, 'y_edge_high:', y_edge_high)
+        if y_edge_low == y_edge_high:
+            return False
+        if x_edge <= wx_high and x_edge >= wx_low:
+            if y_edge_low >= wy_low and y_edge_high <= wy_high:
+                return False
+        return True
+
+    # 检查y方向上的相邻情况
+    if (y1_high == y2_low or y1_low == y2_high) and ((x1_low <= x2_high and x1_high >= x2_high) or (x1_low <= x2_low and x1_high >= x2_low)):
+        y_edge = y1_high if y1_high == y2_low else y1_low
+        x_edge_low, x_edge_high = max(x1_low, x2_low), min(x1_high, x2_high)
+        # print('y_edge:', y_edge)
+        # print('x_edge_low:', x_edge_low, 'x_edge_high:', x_edge_high)
+        if x_edge_low == x_edge_high:
+            return False
+        if y_edge <= wy_high and y_edge >= wy_low:
+            if x_edge_low >= wx_low and x_edge_high <= wx_high:
+                return False
+        return True
+
+    return False
+
 def generate_adjacency_list(regions):
     adjacency_list = {i: [] for i in range(1, len(regions) + 1)}
     
@@ -709,6 +752,18 @@ def generate_adjacency_list(regions):
                 adjacency_list[i + 1].append(j + 1)
                 adjacency_list[j + 1].append(i + 1)
 
+    return adjacency_list
+
+def generate_adjacency_list_antfall(regions, has_bridge):
+    adjacency_list = {i: [] for i in range(1, len(regions) + 1)}
+    
+    for i in range(len(regions)):
+        for j in range(i + 1, len(regions)):
+            # print('i:', i+1, 'j:', j+1)
+            if are_adjacent_antfall(regions[i][:2]+regions[i][3:5], regions[j][:2] + regions[j][3:5], has_bridge=has_bridge):
+                adjacency_list[i + 1].append(j + 1)
+                adjacency_list[j + 1].append(i + 1)
+                
     return adjacency_list
 
 def calculate_center(region):
@@ -739,31 +794,74 @@ def generate_adjacency_graph(regions):
 
 if __name__ == '__main__':
     # AntFall
-    regions =[[2.5,8.0,0,4,16.0,5],
-              [10.0,4.0,0,13.0,8.0,5],
-              [-8,16,0,4,32,5],
-              [4,16,0,16,32,5],
-              [1.0,4.0,0,4,6.0,5],
-              [1.0,6.0,0,4,8.0,5],
-              [-8,0.0,0,-2.0,16.0,5],
-              [1.0,0.0,0,4,4.0,5],
-              [-2.0,8.0,0,2.5,12.0,5],
-              [-2.0,12.0,0,2.5,16,5],
-              [-2.0,0.0,0,1.0,8.0,5],
-              [10.0,12.0,0,13.0,16,5],
-              [4.0,0,0,16.0,4.0,5],
-              [13.0,4.0,0,16,8.0,5],
-              [13.0,12.0,0,16,16,5],
-              [4.0,4.0,0,10.0,8.0,5],
-              [4.0,8.0,0,16.0,12.0,5],
-              [4.0,12.0,0,10.0,16,5]]
-    regions = [[-8,0,0,4,16,5],
-               [4,0,0,16,16,5],
-               [-8,16,0,4,32,5],
-               [4,16,0,16,32,5]]
-    char_maze_list = generate_antfall_maze_representation(regions, (0,0,4.5))
+    # regions =[[2.5,8.0,0,4,16.0,5],
+    #           [10.0,4.0,0,13.0,8.0,5],
+    #           [-8,16,0,4,32,5],
+    #           [4,16,0,16,32,5],
+    #           [1.0,4.0,0,4,6.0,5],
+    #           [1.0,6.0,0,4,8.0,5],
+    #           [-8,0.0,0,-2.0,16.0,5],
+    #           [1.0,0.0,0,4,4.0,5],
+    #           [-2.0,8.0,0,2.5,12.0,5],
+    #           [-2.0,12.0,0,2.5,16,5],
+    #           [-2.0,0.0,0,1.0,8.0,5],
+    #           [10.0,12.0,0,13.0,16,5],
+    #           [4.0,0,0,16.0,4.0,5],
+    #           [13.0,4.0,0,16,8.0,5],
+    #           [13.0,12.0,0,16,16,5],
+    #           [4.0,4.0,0,10.0,8.0,5],
+    #           [4.0,8.0,0,16.0,12.0,5],
+    #           [4.0,12.0,0,10.0,16,5]]
+    # regions = [[1.0,0,0,4,2.0,5],
+    #            [4,0.0,0,10.0,8.0,5],
+    #            [-8,16,0,4,32,5],
+    #            [4,16,0,16,32,5],
+    #            [2.5,8.0,0,4,12.0,5],
+    #            [1.0,2.0,0,4,4.0,5],
+    #            [1.0,4.0,0,4,6.0,5],
+    #            [1.0,6.0,0,4,8.0,5],
+    #            [1.0,8.0,0,2.5,12.0,5],
+    #            [-2.0,0.0,0,1.0,4.0,5],
+    #            [-8,0.0,0,-2.0,16.0,5],
+    #            [1.0,12.0,0,4.0,16,5],
+    #            [-2.0,4.0,0,1.0,16.0,5],
+    #            [10.0,0.0,0,13.0,8.0,5],
+    #            [4.0,8.0,0,16.0,16,5],
+    #            [13.0,0.0,0.0,16,6.0,5.0],
+    #            [13.0,6.0,0,16,8.0,5]]
+    regions = [
+        [1.0,4.0,0,4,6.0,5],
+        [4,0,0,10.0,4.0,5],
+        [-8,16,0,4,32,5],
+        [4,16,0,16,32,5],
+        [1.0,0.0,0,4,4.0,5],
+        [1.0,8.0,2.5,4,16.0,5],
+        [-2.0,4.0,0,1.0,8.0,2.5],
+        [-2.0,4.0,2.5,1.0,8.0,5],
+        [1.0,6.0,0,4,8.0,5],
+        [-2.0,0.0,0,1.0,4.0,5],
+        [-8,0.0,0,-2.0,16.0,5],
+        [1.0,8.0,0,4,16.0,2.5],
+        [-2.0,8.0,0,1.0,16.0,5],
+        [7.0,4.0,0,10.0,8.0,5],
+        [10.0,0.0,0,16,12.0,5],
+        [10.0,12.0,0,16.0,16,5],
+        [7.0,8.0,0,10.0,16,5],
+        [4.0,4.0,0,7.0,16.0,5],
+    ]
+    has_bridge = False
+    # regions = [[-8,0,0,4,16,5],
+    #            [4,0,0,16,16,5],
+    #            [-8,16,0,4,32,5],
+    #            [4,16,0,16,32,5]]
+    char_maze_list = generate_antfall_maze_representation(regions, (0,0,4.5), has_bridge)
+    
+    adjacency_list = generate_adjacency_list_antfall(regions, has_bridge)
     with open('antfall_maze.txt', 'w') as f:
         f.write('\n\n'.join(char_maze_list))
+        f.write('\n\n')
+        for k, v in adjacency_list.items():
+            f.write(f"Region {k}: {v}\n")
     f.close()
     # 示例矩形列表
     # regions = [

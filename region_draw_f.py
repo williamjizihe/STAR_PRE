@@ -514,48 +514,68 @@ LLAMA3_answer_605000 = [
     [(4.5, 3.0), 6, 7]
 ]
 
+from parse_logging import parse_log
+log_file_path = './logging/test_logging_AntMaze_star_LLAMA3_07-31-13-21.log'
+# print("Parsing log file: ", log_file_path)
+# print("Results:", parse_log(log_file_path))
 regions = regions_4980000
-GPT_answer = GPT_answer_4980000
-LLAMA3_answer = LLAMA3_answer_4980000
+GPT_answer = parse_log(log_file_path)
+LLAMA3_1_answer = parse_log('./logging/test_logging_AntMaze_star_LLAMA3_07-31-13-21.log')
+claude_answer = parse_log(log_file_path)
 planning_answer = planning_answer_4980000
 dst = './boss_pic_4980000'
-for i, answer in enumerate(GPT_answer):
+
+# for i, answer in enumerate(claude_answer):
+#     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
+#     ax = fig.add_subplot(111)
+#     v = np.ones(len(regions))
+#     v[answer[1] - 1] = 0
+#     v[answer[2] - 1] = 2
+#     # mycolor = ['r' if j == answer[2]-1 else 'b' for j in range(len(regions))]
+#     # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
+#     plot_Ant_Maze(regions, v, plt.gca(), f"Claude 3.5 Sonnet", show = False, fill=True, position=answer[0])
+#     # plt.show()
+#     fname = f"{dst}/Claude/antmaze_repr_{i}.png"
+#     plt.savefig(fname, dpi=300, bbox_inches='tight')
+#     plt.close()
+    
+# for i, answer in enumerate(GPT_answer):
+#     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
+#     ax = fig.add_subplot(111)
+#     v = np.ones(len(regions))
+#     v[answer[1] - 1] = 0
+#     v[answer[2] - 1] = 2
+#     # mycolor = ['r' if j == answer[2]-1 else 'b' for j in range(len(regions))]
+#     # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
+#     plot_Ant_Maze(regions, v, plt.gca(), f"GPT4o mini", show = False, fill=True, position=answer[0])
+#     # plt.show()
+#     fname = f"{dst}/GPT4omini/antmaze_repr_{i}.png"
+#     plt.savefig(fname, dpi=300, bbox_inches='tight')
+#     plt.close()
+
+for i, answer in enumerate(LLAMA3_1_answer):
     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
     ax = fig.add_subplot(111)
     v = np.ones(len(regions))
     v[answer[1] - 1] = 0
     v[answer[2] - 1] = 2
-    # mycolor = ['r' if j == answer[2]-1 else 'b' for j in range(len(regions))]
-    # plot_Ant_Maze(regions, visits, plt.gca(), f"AntMaze {step}\n{len(regions)} regions", show = False)
-    plot_Ant_Maze(regions, v, plt.gca(), f"GPT4", show = False, fill=True, position=answer[0])
+    plot_Ant_Maze(regions, v, plt.gca(), f"LLAMA31", show = False, fill=True, position=answer[0])
     # plt.show()
-    fname = f"{dst}/GPT4/antmaze_repr_{i}.png"
+    fname = f"{dst}/LLAMA31/antmaze_repr_{i}.png"
     plt.savefig(fname, dpi=300, bbox_inches='tight')
     plt.close()
 
-for i, answer in enumerate(LLAMA3_answer):
-    fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
-    ax = fig.add_subplot(111)
-    v = np.ones(len(regions))
-    v[answer[1] - 1] = 0
-    v[answer[2] - 1] = 2
-    plot_Ant_Maze(regions, v, plt.gca(), f"LLAMA3", show = False, fill=True, position=answer[0])
-    # plt.show()
-    fname = f"{dst}/LLAMA3/antmaze_repr_{i}.png"
-    plt.savefig(fname, dpi=300, bbox_inches='tight')
-    plt.close()
-
-for i, answer in enumerate(planning_answer):
-    fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
-    ax = fig.add_subplot(111)
-    v = np.ones(len(regions))
-    v[answer[1] - 1] = 0
-    v[answer[2] - 1] = 2
-    plot_Ant_Maze(regions, v, plt.gca(), f"Planning", show = False, fill=True, position=answer[0])
-    # plt.show()
-    fname = f"{dst}/planning/antmaze_repr_{i}.png"
-    plt.savefig(fname, dpi=300, bbox_inches='tight')
-    plt.close()
+# for i, answer in enumerate(planning_answer):
+#     fig = plt.figure(figsize=(4, 4))  # Adjust the figure size as needed
+#     ax = fig.add_subplot(111)
+#     v = np.ones(len(regions))
+#     v[answer[1] - 1] = 0
+#     v[answer[2] - 1] = 2
+#     plot_Ant_Maze(regions, v, plt.gca(), f"Planning", show = False, fill=True, position=answer[0])
+#     # plt.show()
+#     fname = f"{dst}/planning/antmaze_repr_{i}.png"
+#     plt.savefig(fname, dpi=300, bbox_inches='tight')
+#     plt.close()
     
 '''
 for timestamp in all_timesteps:

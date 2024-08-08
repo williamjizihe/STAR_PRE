@@ -130,6 +130,9 @@ class EnvWithGoal(object):
         self.history = []
         self.past = []
 
+    def get_block_position(self, block_name):
+        return self.base_env.get_block_position(block_name)
+    
     def seed(self, seed):
         self.base_env.seed(seed)
 

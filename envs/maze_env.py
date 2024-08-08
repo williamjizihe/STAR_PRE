@@ -21,6 +21,7 @@ import xml.etree.ElementTree as ET
 import math
 import numpy as np
 import gym
+import logging
 
 from envs import maze_env_utils
 
@@ -123,6 +124,7 @@ class MazeEnv(gym.Env):
         elif maze_env_utils.can_move(structure[i][j]):  # Movable block.
           # The "falling" blocks are shrunk slightly and increased in mass to
           # ensure that it can fall easily through a gap in the platform blocks.
+          logging.info("Creating movable block at %d, %d", i, j)
           falling = maze_env_utils.can_move_z(structure[i][j])
           shrink = 0.99 if falling else 1.0
           if new_pos:
@@ -135,6 +137,11 @@ class MazeEnv(gym.Env):
                                   height_offset +
                                   height / 2 * size_scaling),
             )
+            logging.info("New position: %f %f %f", j * size_scaling * new_pos[1] - torso_x + new_pos[0],
+                                  i * size_scaling - torso_y,
+                                  height_offset +
+                                  height / 2 * size_scaling)
+            logging.info("Name: moveable_%d_%d", i, j)
           else:
             moveable_body = ET.SubElement(
                 worldbody, "body",
@@ -144,6 +151,8 @@ class MazeEnv(gym.Env):
                                   height_offset +
                                   height / 2 * size_scaling),
             )
+            logging.info("New position: %f %f %f", j * size_scaling - torso_x, i * size_scaling - torso_y, height_offset + height / 2 * size_scaling)
+            logging.info("Name: moveable_%d_%d", i, j)
           ET.SubElement(
               moveable_body, "geom",
               name="block_%d_%d" % (i, j),
@@ -216,6 +225,13 @@ class MazeEnv(gym.Env):
   def get_ori(self):
     return self.wrapped_env.get_ori()
 
+  def get_block_position(self, block_name):
+    # Assumes that the environment has a method to get the simulation object
+    sim = self.wrapped_env.sim
+    block_id = sim.model.body_name2id(block_name)
+    position = sim.data.body_xpos[block_id]
+    return position
+  
   def reset(self):
     self.t = 0
     self.wrapped_env.reset()
@@ -224,7 +240,7 @@ class MazeEnv(gym.Env):
       xy = self._init_positions[idx]
       self.wrapped_env.set_xy(xy)
     return self._get_obs()
-
+  
   @property
   def viewer(self):
     return self.wrapped_env.viewer

@@ -97,10 +97,12 @@ if __name__ == "__main__":
 
     # LLM
     parser.add_argument("--llm", default=False, type=bool)
+    parser.add_argument("--api", default=False, type=bool)
     
     # Run the algorithm
     args = parser.parse_args()
     # args.boss_update = False # This line needs to be removed
+    args.api = False
     
     if args.env_name in ["AntGather", "AntMazeSparse"]:
         args.man_rew_scale = 1.0
@@ -109,6 +111,7 @@ if __name__ == "__main__":
     
     if args.env_name == "AntFall":
         args.boss_alpha = 0.005
+
 
     print('=' * 30)
     for key, val in vars(args).items():
