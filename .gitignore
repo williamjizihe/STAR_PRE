@@ -5,12 +5,15 @@ MiniCPM-2B-sft-fp32/
 # other
 logs/
 models/
+models*/
 partitions/
 transition/
 results/
 NNet/
 test.py
 nnet/
+boss_pic_*/
+/star/config.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

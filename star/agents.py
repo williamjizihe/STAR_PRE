@@ -250,8 +250,9 @@ class Boss(object):
             logging.info("Evaluation Mode")
         else:
             self.select_partition_count += 1
-            
-        if self.select_partition_count < 50000:
+        
+        # 0.5M / 20 = 25000
+        if self.select_partition_count < 25000:
             # We use LLM and STAR randomly at the beginning
             chosen_method = np.random.choice([METHOD.STAR, METHOD.LLM])
             logging.info(f"Total Timesteps: {total_timesteps}\nState: {state}\nStart: {start_partition_idx}\nGoal: {goal}\nSelect Partition Count: {self.select_partition_count}\nRandomly Chosen Method: {chosen_method}")
